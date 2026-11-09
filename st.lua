@@ -557,4 +557,16 @@ end)
 -- AUTO (Configurações e Toggles)
 local TabAuto, PageAuto = createTab("AUTO", 3)
 createSection("Combate", 1, PageAuto)
-createToggle("Auto
+createToggle("Auto Wave", "Inicia onda automaticamente", 2, PageAuto, function() return G.AutoWave end, function(v) G.AutoWave = v end)
+createToggle("Auto Place", "Coloca torres nos slots livres", 3, PageAuto, function() return G.AutoPlace end, function(v) G.AutoPlace = v end)
+createToggle("Auto Upgrade", "Sobe torres até o nível máximo", 4, PageAuto, function() return G.AutoUpgrade end, function(v) G.AutoUpgrade = v end)
+createToggle("Auto Sell", "Vende torres no nível máximo", 5, PageAuto, function() return G.AutoSell end, function(v) G.AutoSell = v end)
+
+createSection("Configurações (Sliders)", 6, PageAuto)
+createSlider("Delay entre ondas", 7, PageAuto, 0.5, 5, function() return G.WaveDelay end, function(v) G.WaveDelay = v end, "%.1fs")
+createSlider("Nível máximo", 8, PageAuto, 1, 20, function() return G.MaxLevel end, function(v) G.MaxLevel = math.floor(v) end, "%d")
+createSlider("Slot da Unidade", 9, PageAuto, 1, 6, function() return G.PlaceSlot end, function(v) G.PlaceSlot = math.floor(v) end, "%d")
+
+-- Inicializa
+switchTab(TabHome, PageHome)
+print("[STD] UI Premium com Sliders e Tamanho Ajustável carregada.")
