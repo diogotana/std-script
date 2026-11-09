@@ -1,4 +1,4 @@
--- STD_Delta.lua — Premium UI Edition (FIX)
+-- STD_Delta.lua — Premium UI Edition (FINAL FIX)
 -- game: Sorcerer Tower Defense | 17720162456
 
 local Players           = game:GetService("Players")
@@ -375,7 +375,6 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- Tabs Sistema
 local TabContainer = Instance.new("Frame")
 TabContainer.Size = UDim2.new(1, 0, 0, 40)
 TabContainer.Position = UDim2.new(0, 0, 0, 50)
@@ -401,7 +400,6 @@ Pages.Position = UDim2.new(0, 0, 0, 90)
 Pages.BackgroundTransparency = 1
 Pages.Parent = Main
 
--- Função que conserta a troca de abas
 local function switchTab(activeBtn, activePage)
     for _, v in ipairs(TabList:GetChildren()) do
         if v:IsA("TextButton") then
@@ -444,7 +442,6 @@ local function createTab(name, order)
     pageLayout.Padding = UDim.new(0, 8)
     pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
-    -- AQUI ESTÁ A CORREÇÃO DO CLIQUE
     btn.MouseButton1Click:Connect(function()
         switchTab(btn, page)
     end)
@@ -452,7 +449,6 @@ local function createTab(name, order)
     return btn, page
 end
 
--- Animação Minimizar
 local expanded = false
 local function setExpanded(v)
     expanded = v
@@ -466,7 +462,6 @@ end
 
 MinBtn.MouseButton1Click:Connect(function() setExpanded(not expanded) end)
 
--- Componentes de UI
 local function createSection(text, order, parent)
     local lbl = Instance.new("TextLabel")
     lbl.Size, lbl.BackgroundTransparency = UDim2.new(1, 0, 0, 20), 1
@@ -522,64 +517,6 @@ local function createButton(txt, order, parent, color, callback)
     btn.MouseLeave:Connect(function() TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = color}):Play() end)
     btn.MouseButton1Click:Connect(callback)
     return btn
-end
-
-local function createSlider(lbl, order, parent, minV, maxV, getF, setF, fmt)
-    local frame = Instance.new("Frame")
-    frame.Size, frame.BackgroundColor3, frame.BorderSizePixel = UDim2.new(1, 0, 0, 56), Theme.Surface, 0
-    frame.LayoutOrder, frame.Parent = order, parent
-    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
-    
-    local title = Instance.new("TextLabel")
-    title.Size, title.Position = UDim2.new(0.65,0,0,18), UDim2.new(0,12,0,8)
-    title.BackgroundTransparency, title.Text, title.TextColor3 = 1, lbl, Theme.Text
-    title.Font, title.TextSize, title.TextXAlignment, title.Parent = Enum.Font.GothamSemibold, 12, Enum.TextXAlignment.Left, frame
-    
-    local vLbl = Instance.new("TextLabel")
-    vLbl.Size, vLbl.Position = UDim2.new(0.3,0,0,18), UDim2.new(0.68,0,0,8)
-    vLbl.BackgroundTransparency, vLbl.Text, vLbl.TextColor3 = 1, string.format(fmt, getF()), Theme.AccentL
-    vLbl.Font, vLbl.TextSize, vLbl.TextXAlignment, vLbl.Parent = Enum.Font.GothamBold, 12, Enum.TextXAlignment.Right, frame
-    
-    local track = Instance.new("Frame")
-    track.Size, track.Position = UDim2.new(1,-24,0,8), UDim2.new(0,12,0,36)
-    track.BackgroundColor3, track.BorderSizePixel, track.Parent = Theme.Border, 0, frame
-    Instance.new("UICorner", track).CornerRadius = UDim.new(1,0)
-    
-    local pct = (getF()-minV)/(maxV-minV)
-    local fill = Instance.new("Frame")
-    fill.Size, fill.BackgroundColor3, fill.BorderSizePixel, fill.Parent = UDim2.new(pct,0,1,0), Theme.Accent, 0, track
-    Instance.new("UICorner", fill).CornerRadius = UDim.new(1,0)
-    
-    local knob = Instance.new("Frame")
-    knob.Size, knob.Position = UDim2.new(0,16,0,16), UDim2.new(pct,-8,0.5,-8)
-    knob.BackgroundColor3, knob.BorderSizePixel, knob.Parent = Color3.new(1,1,1), 0, track
-    Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
-    
-    local dragging = false
-    local function update(x)
-        local rel = math.clamp((x - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
-        local val = minV + (maxV - minV) * rel
-        if maxV - minV >= 4 then val = math.floor(val + 0.5) end
-        setF(val)
-        vLbl.Text = string.format(fmt, val)
-        local p = (val - minV) / (maxV - minV)
-        fill.Size, knob.Position = UDim2.new(p,0,1,0), UDim2.new(p,-8,0.5,-8)
-    end
-    
-    local hit = Instance.new("TextButton")
-    hit.Size, hit.BackgroundTransparency, hit.Text, hit.ZIndex = UDim2.new(1,0,1,0), 1, "", 5
-    hit.Parent = track
-    hit.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true update(inp.Position.X)
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(inp)
-        if dragging and (inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseMovement) then update(inp.Position.X) end
-    end)
-    UserInputService.InputEnded:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
-    end)
 end
 
 -- ══════════════════════════════════════════════
@@ -656,4 +593,14 @@ createButton("📂 Carregar Macro", 6, PageMacro, Color3.fromRGB(150, 100, 50), 
 end)
 
 -- AUTO
-local Tab
+local TabAuto, PageAuto = createTab("AUTO", 3)
+createSection("Combate", 1, PageAuto)
+createToggle("Auto Wave", "Inicia onda automaticamente", 2, PageAuto, function() return G.AutoWave end, function(v) G.AutoWave = v end)
+createToggle("Auto Place", "Coloca torres nos slots livres", 3, PageAuto, function() return G.AutoPlace end, function(v) G.AutoPlace = v end)
+createToggle("Auto Upgrade", "Sobe torres até o nível máximo", 4, PageAuto, function() return G.AutoUpgrade end, function(v) G.AutoUpgrade = v end)
+createToggle("Auto Sell", "Vende torres no nível máximo", 5, PageAuto, function() return G.AutoSell end, function(v) G.AutoSell = v end)
+
+-- Inicialização para garantir que a aba Home apareça aberta
+switchTab(TabHome, PageHome)
+
+print("[STD] UI Premium carregada com sucesso e abas consertadas.")
