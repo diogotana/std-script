@@ -1,4 +1,4 @@
--- STD_Delta.lua — Premium UI Edition (FINAL FIX)
+-- STD_Delta.lua — Premium UI Edition (FINAL)
 -- game: Sorcerer Tower Defense | 17720162456
 
 local Players           = game:GetService("Players")
@@ -32,29 +32,6 @@ local G = {
 }
 
 -- ══════════════════════════════════════════════
---  SISTEMA DE SALVAR/CARREGAR MACRO
--- ══════════════════════════════════════════════
-local MACRO_FILE = "STD_Macro.json"
-
-local function saveMacroToFile()
-    if #G.MacroCache == 0 then return false end
-    local success, encoded = pcall(function() return HttpService:JSONEncode(G.MacroCache) end)
-    if success then return pcall(function() writefile(MACRO_FILE, encoded) end) end
-    return false
-end
-
-local function loadMacroFromFile()
-    local exists = pcall(function() return isfile(MACRO_FILE) end)
-    if not exists then return false end
-    local readSuccess, content = pcall(function() return readfile(MACRO_FILE) end)
-    if readSuccess and content then
-        local decodeSuccess, data = pcall(function() return HttpService:JSONDecode(content) end)
-        if decodeSuccess and type(data) == "table" then G.MacroCache = data return true end
-    end
-    return false
-end
-
--- ══════════════════════════════════════════════
 --  TELEPORTE E AUTO-RETORNO
 -- ══════════════════════════════════════════════
 local function tpTo(cframe)
@@ -69,16 +46,14 @@ task.spawn(function()
             local char = lp.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if hrp and (hrp.Position - G.PosRaid.Position).Magnitude > 50 then
-                task.wait(2)
-                if G.AutoRaid then tpTo(G.PosRaid) end
+                task.wait(2) if G.AutoRaid then tpTo(G.PosRaid) end
             end
         end
         if G.AutoCassino and G.PosCassino then
             local char = lp.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if hrp and (hrp.Position - G.PosCassino.Position).Magnitude > 50 then
-                task.wait(2)
-                if G.AutoCassino then tpTo(G.PosCassino) end
+                task.wait(2) if G.AutoCassino then tpTo(G.PosCassino) end
             end
         end
         task.wait(1)
@@ -109,8 +84,7 @@ local function scanRemotes()
             if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
                 for key, patterns in pairs(PATTERNS) do
                     if not REMOTES[key] and matchesPattern(v.Name, patterns) then
-                        REMOTES[key] = v
-                        found = found + 1
+                        REMOTES[key] = v found = found + 1
                     end
                 end
             end
@@ -121,9 +95,7 @@ local function scanRemotes()
     return found
 end
 
-task.spawn(function()
-    while G.Running do scanRemotes() task.wait(4) end
-end)
+task.spawn(function() while G.Running do scanRemotes() task.wait(4) end end)
 
 local function safe(fn, ...)
     local ok, err = pcall(fn, ...)
@@ -131,15 +103,14 @@ local function safe(fn, ...)
 end
 
 -- ══════════════════════════════════════════════
---  UTILITÁRIOS
+--  UTILITÁRIOS E LOOPS
 -- ══════════════════════════════════════════════
 local slotCache, towerCache, cacheTime = {}, {}, 0
 local CACHE_TTL = 2
 
 local function refreshCache()
     if os.clock() - cacheTime < CACHE_TTL then return end
-    cacheTime = os.clock()
-    slotCache, towerCache = {}, {}
+    cacheTime = os.clock() slotCache, towerCache = {}, {}
     for _, v in ipairs(workspace:GetDescendants()) do
         if v:IsA("BasePart") then
             local n = v.Name:lower()
@@ -158,9 +129,6 @@ end
 local function getSlots() refreshCache() return slotCache end
 local function getMyTowers() refreshCache() return towerCache end
 
--- ══════════════════════════════════════════════
---  LOOPS DE AUTOMAÇÃO
--- ══════════════════════════════════════════════
 task.spawn(function()
     while G.Running do
         if G.AutoWave and REMOTES.StartWave then safe(function() REMOTES.StartWave:FireServer() end) end
@@ -177,7 +145,6 @@ task.spawn(function()
                     local slot = slots[i]
                     if slot then
                         safe(function() REMOTES.PlaceTower:FireServer(G.PlaceSlot, slot.CFrame) end)
-                        safe(function() REMOTES.PlaceTower:FireServer(G.PlaceSlot, slot.Position) end)
                         task.wait(0.15)
                     end
                 end
@@ -192,8 +159,7 @@ task.spawn(function()
         if G.AutoUpgrade and REMOTES.UpgradeTower then
             for _, tower in ipairs(getMyTowers()) do
                 local lvl = tower:FindFirstChild("Level") or tower:FindFirstChild("Upgrades") or tower:FindFirstChild("Tier")
-                local cur = lvl and lvl.Value or 0
-                if cur < G.MaxLevel then
+                if (lvl and lvl.Value or 0) < G.MaxLevel then
                     safe(function() REMOTES.UpgradeTower:FireServer(tower) end)
                     task.wait(0.1)
                 end
@@ -245,11 +211,7 @@ local function stopRecording()
 end
 
 local playTask = nil
-local function stopPlayback()
-    G.IsPlaying = false
-    if playTask then task.cancel(playTask) playTask = nil end
-end
-
+local function stopPlayback() G.IsPlaying = false if playTask then task.cancel(playTask) playTask = nil end end
 local function playMacro()
     if G.IsRecording or #G.MacroCache == 0 then return end
     G.IsPlaying = true
@@ -267,8 +229,7 @@ local function playMacro()
                 elseif a.Type == "Key" then
                     local key = Enum.KeyCode[a.KeyCode]
                     if key then
-                        VirtualInputManager:SendKeyEvent(true, key, false, game)
-                        task.wait(0.05)
+                        VirtualInputManager:SendKeyEvent(true, key, false, game) task.wait(0.05)
                         VirtualInputManager:SendKeyEvent(false, key, false, game)
                     end
                 end
@@ -285,11 +246,8 @@ local playerGui = lp:WaitForChild("PlayerGui")
 if playerGui:FindFirstChild("STD_Mobile") then playerGui:FindFirstChild("STD_Mobile"):Destroy() end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "STD_Mobile"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.IgnoreGuiInset = true
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.DisplayOrder = 999
+ScreenGui.Name = "STD_Mobile" ScreenGui.ResetOnSpawn = false ScreenGui.IgnoreGuiInset = true
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling ScreenGui.DisplayOrder = 999
 ScreenGui.Parent = playerGui
 
 local Theme = {
@@ -306,7 +264,6 @@ local Theme = {
 
 local W, H = 340, 520
 local Main = Instance.new("Frame")
-Main.Name = "Main"
 Main.Size = UDim2.new(0, W, 0, 50)
 Main.Position = UDim2.new(0.5, -W/2, 0.5, -25)
 Main.BackgroundColor3 = Theme.BG
@@ -314,9 +271,8 @@ Main.BorderSizePixel = 0
 Main.ClipsDescendants = true
 Main.Parent = ScreenGui
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
-local MainStroke = Instance.new("UIStroke", Main)
-MainStroke.Color = Theme.Border
-MainStroke.Thickness = 1.5
+local stroke = Instance.new("UIStroke", Main)
+stroke.Color = Theme.Border stroke.Thickness = 1.5
 
 local TopBar = Instance.new("Frame")
 TopBar.Size = UDim2.new(1, 0, 0, 50)
@@ -325,23 +281,10 @@ TopBar.BorderSizePixel = 0
 TopBar.Parent = Main
 Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 12)
 
-local TopBarFix = Instance.new("Frame")
-TopBarFix.Size = UDim2.new(1, 0, 0.5, 2)
-TopBarFix.Position = UDim2.new(0, 0, 0.5, 0)
-TopBarFix.BackgroundColor3 = Theme.Surface
-TopBarFix.BorderSizePixel = 0
-TopBarFix.Parent = TopBar
-
 local Title = Instance.new("TextLabel")
-Title.Text = "⟡ Sorcerer TD"
-Title.Size = UDim2.new(1, -120, 1, 0)
-Title.Position = UDim2.new(0, 16, 0, 0)
-Title.BackgroundTransparency = 1
-Title.TextColor3 = Theme.Text
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 15
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Parent = TopBar
+Title.Text, Title.Size, Title.Position = "⟡ Sorcerer TD", UDim2.new(1, -120, 1, 0), UDim2.new(0, 16, 0, 0)
+Title.BackgroundTransparency, Title.TextColor3 = 1, Theme.Text
+Title.Font, Title.TextSize, Title.TextXAlignment, Title.Parent = Enum.Font.GothamBold, 15, Enum.TextXAlignment.Left, TopBar
 
 local function createTopBtn(text, posX, color, callback)
     local btn = Instance.new("TextButton")
@@ -353,6 +296,18 @@ local function createTopBtn(text, posX, color, callback)
     btn.MouseButton1Click:Connect(callback)
     return btn
 end
+
+-- BOTÃO DE REDIMENSIONAR (O que você pediu)
+local ScaleBtn = createTopBtn("⤢", -128, Theme.Border, function()
+    if G.UiScale == 1 then
+        G.UiScale = 0.75
+    elseif G.UiScale == 0.75 then
+        G.UiScale = 1.2
+    else
+        G.UiScale = 1
+    end
+    TweenService:Create(Main, TweenInfo.new(0.2), {Size = UDim2.new(0, W * G.UiScale, 0, (Main.Visible and (expanded and H or 50) or 50) * G.UiScale)}):Play()
+end)
 
 createTopBtn("✕", -44, Theme.Red, function() G.Running = false ScreenGui:Destroy() end)
 local MinBtn = createTopBtn("−", -86, Theme.Border, function() end)
@@ -375,36 +330,27 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
+-- Tabs
 local TabContainer = Instance.new("Frame")
-TabContainer.Size = UDim2.new(1, 0, 0, 40)
-TabContainer.Position = UDim2.new(0, 0, 0, 50)
-TabContainer.BackgroundColor3 = Theme.BG
-TabContainer.BorderSizePixel = 0
+TabContainer.Size, TabContainer.Position = UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0, 50)
+TabContainer.BackgroundColor3, TabContainer.BorderSizePixel = Theme.BG, 0
 TabContainer.Parent = Main
 
 local TabList = Instance.new("Frame")
-TabList.Size = UDim2.new(1, -16, 1, -8)
-TabList.Position = UDim2.new(0, 8, 0, 4)
-TabList.BackgroundTransparency = 1
-TabList.Parent = TabContainer
+TabList.Size, TabList.Position = UDim2.new(1, -16, 1, -8), UDim2.new(0, 8, 0, 4)
+TabList.BackgroundTransparency = 1 TabList.Parent = TabContainer
 
 local TabLayout = Instance.new("UIListLayout", TabList)
-TabLayout.FillDirection = Enum.FillDirection.Horizontal
-TabLayout.Padding = UDim.new(0, 6)
-TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
-TabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+TabLayout.FillDirection = Enum.FillDirection.Horizontal TabLayout.Padding = UDim.new(0, 6)
+TabLayout.SortOrder = Enum.SortOrder.LayoutOrder TabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local Pages = Instance.new("Frame")
-Pages.Size = UDim2.new(1, 0, 1, -90)
-Pages.Position = UDim2.new(0, 0, 0, 90)
-Pages.BackgroundTransparency = 1
-Pages.Parent = Main
+Pages.Size, Pages.Position = UDim2.new(1, 0, 1, -90), UDim2.new(0, 0, 0, 90)
+Pages.BackgroundTransparency = 1 Pages.Parent = Main
 
 local function switchTab(activeBtn, activePage)
     for _, v in ipairs(TabList:GetChildren()) do
-        if v:IsA("TextButton") then
-            TweenService:Create(v, TweenInfo.new(0.15), {BackgroundColor3 = Theme.Surface, TextColor3 = Theme.Dim}):Play()
-        end
+        if v:IsA("TextButton") then TweenService:Create(v, TweenInfo.new(0.15), {BackgroundColor3 = Theme.Surface, TextColor3 = Theme.Dim}):Play() end
     end
     for _, v in ipairs(Pages:GetChildren()) do
         if v:IsA("ScrollingFrame") then v.Visible = false end
@@ -415,37 +361,22 @@ end
 
 local function createTab(name, order)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.33, -4, 1, 0)
-    btn.BackgroundColor3 = Theme.Surface
-    btn.Text = name
-    btn.TextColor3 = Theme.Dim
-    btn.Font = Enum.Font.GothamSemibold
-    btn.TextSize = 12
-    btn.BorderSizePixel = 0
-    btn.LayoutOrder = order
-    btn.Parent = TabList
+    btn.Size, btn.BackgroundColor3 = UDim2.new(0.33, -4, 1, 0), Theme.Surface
+    btn.Text, btn.TextColor3, btn.Font, btn.TextSize, btn.BorderSizePixel = name, Theme.Dim, Enum.Font.GothamSemibold, 12, 0
+    btn.LayoutOrder, btn.Parent = order, TabList
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     
     local page = Instance.new("ScrollingFrame")
-    page.Size = UDim2.new(1, -16, 1, -16)
-    page.Position = UDim2.new(0, 8, 0, 8)
-    page.BackgroundTransparency = 1
-    page.BorderSizePixel = 0
-    page.ScrollBarThickness = 3
-    page.ScrollBarImageColor3 = Theme.Accent
-    page.CanvasSize = UDim2.new(0, 0, 0, 0)
-    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    page.Visible = false
-    page.Parent = Pages
+    page.Size, page.Position = UDim2.new(1, -16, 1, -16), UDim2.new(0, 8, 0, 8)
+    page.BackgroundTransparency, page.BorderSizePixel = 1, 0
+    page.ScrollBarThickness, page.ScrollBarImageColor3 = 3, Theme.Accent
+    page.CanvasSize, page.AutomaticCanvasSize = UDim2.new(0, 0, 0, 0), Enum.AutomaticSize.Y
+    page.Visible, page.Parent = false, Pages
     
     local pageLayout = Instance.new("UIListLayout", page)
-    pageLayout.Padding = UDim.new(0, 8)
-    pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    pageLayout.Padding, pageLayout.SortOrder = UDim.new(0, 8), Enum.SortOrder.LayoutOrder
 
-    btn.MouseButton1Click:Connect(function()
-        switchTab(btn, page)
-    end)
-    
+    btn.MouseButton1Click:Connect(function() switchTab(btn, page) end)
     return btn, page
 end
 
@@ -454,14 +385,14 @@ local function setExpanded(v)
     expanded = v
     MinBtn.Text = v and "−" or "+"
     TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-        Size = UDim2.new(0, W, 0, v and H or 50)
+        Size = UDim2.new(0, W * G.UiScale, 0, (v and H or 50) * G.UiScale)
     }):Play()
-    TabContainer.Visible = v
-    Pages.Visible = v
+    TabContainer.Visible, Pages.Visible = v, v
 end
 
 MinBtn.MouseButton1Click:Connect(function() setExpanded(not expanded) end)
 
+-- Componentes
 local function createSection(text, order, parent)
     local lbl = Instance.new("TextLabel")
     lbl.Size, lbl.BackgroundTransparency = UDim2.new(1, 0, 0, 20), 1
@@ -476,14 +407,14 @@ local function createToggle(lbl, desc, order, parent, getF, setF)
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
     
     local title = Instance.new("TextLabel")
-    title.Size, title.Position = UDim2.new(1, -60, 0, 20), UDim2.new(0, 12, 0, 8)
-    title.BackgroundTransparency, title.Text, title.TextColor3 = 1, lbl, Theme.Text
-    title.Font, title.TextSize, title.TextXAlignment, title.Parent = Enum.Font.GothamSemibold, 13, Enum.TextXAlignment.Left, frame
+    title.Size, title.Position, title.BackgroundTransparency = UDim2.new(1, -60, 0, 20), UDim2.new(0, 12, 0, 8), 1
+    title.Text, title.TextColor3, title.Font, title.TextSize = lbl, Theme.Text, Enum.Font.GothamSemibold, 13
+    title.TextXAlignment, title.Parent = Enum.TextXAlignment.Left, frame
     
     local sub = Instance.new("TextLabel")
-    sub.Size, sub.Position = UDim2.new(1, -60, 0, 14), UDim2.new(0, 12, 0, 28)
-    sub.BackgroundTransparency, sub.Text, sub.TextColor3 = 1, desc, Theme.Dim
-    sub.Font, sub.TextSize, sub.TextXAlignment, sub.Parent = Enum.Font.Gotham, 11, Enum.TextXAlignment.Left, frame
+    sub.Size, sub.Position, sub.BackgroundTransparency = UDim2.new(1, -60, 0, 14), UDim2.new(0, 12, 0, 28), 1
+    sub.Text, sub.TextColor3, sub.Font, sub.TextSize = desc, Theme.Dim, Enum.Font.Gotham, 11
+    sub.TextXAlignment, sub.Parent = Enum.TextXAlignment.Left, frame
     
     local pill = Instance.new("Frame")
     pill.Size, pill.Position = UDim2.new(0, 44, 0, 24), UDim2.new(1, -56, 0.5, -12)
@@ -500,8 +431,7 @@ local function createToggle(lbl, desc, order, parent, getF, setF)
     btn.Parent = frame
     
     btn.MouseButton1Click:Connect(function()
-        local state = not getF()
-        setF(state)
+        local state = not getF() setF(state)
         TweenService:Create(pill, TweenInfo.new(0.15), {BackgroundColor3 = state and Theme.Accent or Theme.Border}):Play()
         TweenService:Create(knob, TweenInfo.new(0.15), {Position = state and UDim2.new(1,-20,0.5,-9) or UDim2.new(0,3,0.5,-9)}):Play()
     end)
@@ -517,6 +447,56 @@ local function createButton(txt, order, parent, color, callback)
     btn.MouseLeave:Connect(function() TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = color}):Play() end)
     btn.MouseButton1Click:Connect(callback)
     return btn
+end
+
+-- SLIDER (A opção que você pediu de volta)
+local function createSlider(lbl, order, parent, minV, maxV, getF, setF, fmt)
+    local frame = Instance.new("Frame")
+    frame.Size, frame.BackgroundColor3, frame.BorderSizePixel = UDim2.new(1, 0, 0, 56), Theme.Surface, 0
+    frame.LayoutOrder, frame.Parent = order, parent
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+    
+    local title = Instance.new("TextLabel")
+    title.Size, title.Position, title.BackgroundTransparency = UDim2.new(0.65,0,0,18), UDim2.new(0,12,0,8), 1
+    title.Text, title.TextColor3, title.Font, title.TextSize = lbl, Theme.Text, Enum.Font.GothamSemibold, 12
+    title.TextXAlignment, title.Parent = Enum.TextXAlignment.Left, frame
+    
+    local vLbl = Instance.new("TextLabel")
+    vLbl.Size, vLbl.Position, vLbl.BackgroundTransparency = UDim2.new(0.3,0,0,18), UDim2.new(0.68,0,0,8), 1
+    vLbl.Text, vLbl.TextColor3, vLbl.Font, vLbl.TextSize = string.format(fmt, getF()), Theme.AccentL, Enum.Font.GothamBold, 12
+    vLbl.TextXAlignment, vLbl.Parent = Enum.TextXAlignment.Right, frame
+    
+    local track = Instance.new("Frame")
+    track.Size, track.Position = UDim2.new(1,-24,0,8), UDim2.new(0,12,0,36)
+    track.BackgroundColor3, track.BorderSizePixel, track.Parent = Theme.Border, 0, frame
+    Instance.new("UICorner", track).CornerRadius = UDim.new(1,0)
+    
+    local pct = (getF()-minV)/(maxV-minV)
+    local fill = Instance.new("Frame")
+    fill.Size, fill.BackgroundColor3, fill.BorderSizePixel, fill.Parent = UDim2.new(pct,0,1,0), Theme.Accent, 0, track
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1,0)
+    
+    local knob = Instance.new("Frame")
+    knob.Size, knob.Position = UDim2.new(0,16,0,16), UDim2.new(pct,-8,0.5,-8)
+    knob.BackgroundColor3, knob.BorderSizePixel, knob.Parent = Color3.new(1,1,1), 0, track
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
+    
+    local dragging = false
+    local function update(x)
+        local rel = math.clamp((x - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+        local val = minV + (maxV - minV) * rel
+        if maxV - minV >= 4 then val = math.floor(val + 0.5) end
+        setF(val) vLbl.Text = string.format(fmt, val)
+        local p = (val - minV) / (maxV - minV)
+        fill.Size, knob.Position = UDim2.new(p,0,1,0), UDim2.new(p,-8,0.5,-8)
+    end
+    
+    local hit = Instance.new("TextButton")
+    hit.Size, hit.BackgroundTransparency, hit.Text, hit.ZIndex = UDim2.new(1,0,1,0), 1, "", 5
+    hit.Parent = track
+    hit.InputBegan:Connect(function(inp) if inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true update(inp.Position.X) end end)
+    UserInputService.InputChanged:Connect(function(inp) if dragging and (inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseMovement) then update(inp.Position.X) end end)
+    UserInputService.InputEnded:Connect(function(inp) if inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
 end
 
 -- ══════════════════════════════════════════════
@@ -556,51 +536,25 @@ createToggle("Loop Auto Cassino", "Volta ao cassino automaticamente", 7, PageHom
 local TabMacro, PageMacro = createTab("MACRO", 2)
 createSection("Gravação de Cliques", 1, PageMacro)
 local recBtn = createButton("● Iniciar Gravação", 2, PageMacro, Theme.Red, function()
-    if G.IsRecording then
-        stopRecording()
-        recBtn.Text, recBtn.BackgroundColor3 = "● Iniciar Gravação", Theme.Red
-    else
-        startRecording()
-        recBtn.Text, recBtn.BackgroundColor3 = "■ Parar Gravação", Theme.Border
-    end
+    if G.IsRecording then stopRecording() recBtn.Text, recBtn.BackgroundColor3 = "● Iniciar Gravação", Theme.Red
+    else startRecording() recBtn.Text, recBtn.BackgroundColor3 = "■ Parar Gravação", Theme.Border end
 end)
 local playBtn = createButton("▶ Reproduzir Macro", 3, PageMacro, Theme.Green, function()
-    if G.IsPlaying then
-        stopPlayback()
-        playBtn.Text, playBtn.BackgroundColor3 = "▶ Reproduzir Macro", Theme.Green
-    else
-        if #G.MacroCache > 0 then
-            playMacro()
-            playBtn.Text, playBtn.BackgroundColor3 = "■ Parar Reprodução", Theme.Border
-        end
-    end
+    if G.IsPlaying then stopPlayback() playBtn.Text, playBtn.BackgroundColor3 = "▶ Reproduzir Macro", Theme.Green
+    elseif #G.MacroCache > 0 then playMacro() playBtn.Text, playBtn.BackgroundColor3 = "■ Parar Reprodução", Theme.Border end
 end)
 
 createSection("Gerenciamento de Macro", 4, PageMacro)
 createButton("💾 Salvar Macro", 5, PageMacro, Color3.fromRGB(50, 80, 150), function()
-    if saveMacroToFile() then
-        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Sucesso", Text = "Macro Salvo no dispositivo!", Duration = 3})
-    else
-        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Erro", Text = "Nenhum macro ou falha ao salvar.", Duration = 3})
-    end
+    if saveMacroToFile() then game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Sucesso", Text = "Macro Salvo!", Duration = 3})
+    else game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Erro", Text = "Falha ao salvar.", Duration = 3}) end
 end)
 createButton("📂 Carregar Macro", 6, PageMacro, Color3.fromRGB(150, 100, 50), function()
-    if loadMacroFromFile() then
-        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Sucesso", Text = "Macro Carregado com sucesso!", Duration = 3})
-    else
-        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Erro", Text = "Nenhum macro salvo encontrado.", Duration = 3})
-    end
+    if loadMacroFromFile() then game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Sucesso", Text = "Macro Carregado!", Duration = 3})
+    else game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Erro", Text = "Nenhum salvo.", Duration = 3}) end
 end)
 
--- AUTO
+-- AUTO (Configurações e Toggles)
 local TabAuto, PageAuto = createTab("AUTO", 3)
 createSection("Combate", 1, PageAuto)
-createToggle("Auto Wave", "Inicia onda automaticamente", 2, PageAuto, function() return G.AutoWave end, function(v) G.AutoWave = v end)
-createToggle("Auto Place", "Coloca torres nos slots livres", 3, PageAuto, function() return G.AutoPlace end, function(v) G.AutoPlace = v end)
-createToggle("Auto Upgrade", "Sobe torres até o nível máximo", 4, PageAuto, function() return G.AutoUpgrade end, function(v) G.AutoUpgrade = v end)
-createToggle("Auto Sell", "Vende torres no nível máximo", 5, PageAuto, function() return G.AutoSell end, function(v) G.AutoSell = v end)
-
--- Inicialização para garantir que a aba Home apareça aberta
-switchTab(TabHome, PageHome)
-
-print("[STD] UI Premium carregada com sucesso e abas consertadas.")
+createToggle("Auto
