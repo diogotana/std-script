@@ -1,4 +1,4 @@
--- STD_Delta.lua — Premium UI (Final Version)
+-- STD_Delta.lua — Premium UI + Multi-Farm + Discord
 -- game: Sorcerer Tower Defense | 17720162456
 
 local Players           = game:GetService("Players")
@@ -9,19 +9,59 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService       = game:GetService("HttpService")
 
+-- COLE O SEU WEBHOOK NOVO AQUI ENTRE AS ASPAS:
+local URL_WEBHOOK = "https://discord.com/api/webhooks/1131677874563317791/czmm0YTkBViovqEyBlHFxBNxEtFTMGyykrz3LcX6cS4cBncNpfzSlwSo7eV8GnicYlut"
+
 local lp = Players.LocalPlayer
 
 local G = {
-    AutoWave     = false, AutoPlace    = false, AutoUpgrade  = false, AutoSell     = false,
-    WaveDelay    = 1.5, MaxLevel     = 5, PlaceSlot    = 1, PlaceDistance = 100,
-    UiScale      = 1, Running      = true,
-    IsRecording  = false, IsPlaying    = false, IsLooping    = false,
-    MacroCache   = {}, RecordStartTime = 0,
-    PosRaid      = nil, PosCassino   = nil, AutoRaid     = false, AutoCassino  = false,
+    AutoWave = false, AutoPlace = false, AutoUpgrade = false, AutoSell = false,
+    WaveDelay = 1.5, MaxLevel = 5, PlaceSlot = 1, 
+    UiScale = 1, Running = true,
+    
+    -- Macros
+    IsRecording = false, RecordType = "", RecordStartTime = 0,
+    MacroRaid = {}, MacroCassino = {}, MacroChall = {},
+    ActiveMacro = "Raid",
+    IsPlaying = false, IsLooping = true,
+
+    -- Teleportes
+    PosRaid = CFrame.new(11.12, 17.30, 3097.41), 
+    PosCassino = CFrame.new(-362.99, 16.59, 2854.20), 
+    PosEasy = CFrame.new(-340.54, 16.91, 3268.80), 
+    PosNormal = CFrame.new(-364.12, 17.33, 3291.20), 
+    PosHell = CFrame.new(-391.81, 16.70, 3314.83),
+    
+    AutoRaid = false, AutoCassino = false, AutoEasy = false, AutoNormal = false, AutoHell = false
 }
 
 -- ══════════════════════════════════════════════
---  TELEPORTE E AUTO-RETORNO
+--  SISTEMA DE WEBHOOK DISCORD
+-- ══════════════════════════════════════════════
+local function sendDiscordAlert(itemName)
+    if URL_WEBHOOK == "COLE_SEU_WEBHOOK_AQUI" then
+        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Erro", Text = "Cole o link do seu Webhook no código!", Duration = 3})
+        return
+    end
+    
+    local data = {
+        ["content"] = "🚨 **ITEM ENCONTRADO NO SORCERER TD!** 🚨",
+        ["embeds"] = {{
+            ["title"] = "Novo Drop!",
+            ["description"] = "O item **" .. itemName .. "** foi encontrado e está pronto para ser pego!",
+            ["color"] = 5763719,
+            ["footer"] = {["text"] = "STD Macro Premium"}
+        }}
+    }
+    
+    pcall(function()
+        HttpService:PostAsync(URL_WEBHOOK, HttpService:JSONEncode(data), Enum.HttpContentType.ApplicationJson)
+        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Sucesso", Text = "Aviso enviado para o Discord!", Duration = 3})
+    end)
+end
+
+-- ══════════════════════════════════════════════
+--  SISTEMA DE TELEPORTE
 -- ══════════════════════════════════════════════
 local function tpTo(cframe)
     if cframe and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
@@ -31,148 +71,58 @@ end
 
 task.spawn(function()
     while G.Running do
-        if G.AutoRaid and G.PosRaid then
-            local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-            if hrp and (hrp.Position - G.PosRaid.Position).Magnitude > 50 then task.wait(2) if G.AutoRaid then tpTo(G.PosRaid) end end
-        end
-        if G.AutoCassino and G.PosCassino then
-            local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-            if hrp and (hrp.Position - G.PosCassino.Position).Magnitude > 50 then task.wait(2) if G.AutoCassino then tpTo(G.PosCassino) end end
-        end
-        task.wait(1)
-    end
-end)
-
--- ══════════════════════════════════════════════
---  DETECÇÃO DE REMOTES
--- ══════════════════════════════════════════════
-local REMOTES = { StartWave=nil, PlaceTower=nil, UpgradeTower=nil, SellTower=nil }
-local PATTERNS = {
-    StartWave = {"wave","start"}, PlaceTower = {"place","spawn","deploy"}, UpgradeTower = {"upgrade","level"}, SellTower = {"sell","remove"}
-}
-
-local function matchesPattern(name, list)
-    name = name:lower() for _, p in ipairs(list) do if name:find(p) then return true end end return false
-end
-
-local function scanRemotes()
-    local function scan(parent)
-        for _, v in ipairs(parent:GetDescendants()) do
-            if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
-                for key, patterns in pairs(PATTERNS) do
-                    if not REMOTES[key] and matchesPattern(v.Name, patterns) then REMOTES[key] = v end
-                end
-            end
-        end
-    end
-    pcall(scan, ReplicatedStorage) pcall(scan, workspace)
-end
-
-task.spawn(function() while G.Running do scanRemotes() task.wait(4) end end)
-
-local function safe(fn, ...) local ok, err = pcall(fn, ...) if not ok then warn("[STD] " .. tostring(err)) end end
-
--- ══════════════════════════════════════════════
---  UTILITÁRIOS E LOOPS
--- ══════════════════════════════════════════════
-local slotCache, towerCache, cacheTime = {}, {}, 0
-local function getSlots()
-    if os.clock() - cacheTime < 2 then return slotCache end
-    cacheTime = os.clock() slotCache = {}
-    for _, v in ipairs(workspace:GetDescendants()) do
-        if v:IsA("BasePart") and (v.Name:lower():find("slot") or v.Name:lower():find("node") or v.Name:lower():find("point")) then table.insert(slotCache, v) end
-    end
-    return slotCache
-end
-
-local function getMyTowers()
-    if os.clock() - cacheTime < 2 then return towerCache end
-    towerCache = {}
-    for _, v in ipairs(workspace:GetDescendants()) do
-        if v:IsA("Model") then
-            local ow = v:FindFirstChild("Owner") or v:FindFirstChild("PlayerId")
-            if ow and (ow.Value == lp.UserId or ow.Value == lp.Name) then table.insert(towerCache, v) end
-        end
-    end
-    return towerCache
-end
-
-task.spawn(function()
-    while G.Running do
-        if G.AutoWave and REMOTES.StartWave then safe(function() REMOTES.StartWave:FireServer() end) end
-        task.wait(G.WaveDelay)
-    end
-end)
-
-task.spawn(function()
-    while G.Running do
-        if G.AutoPlace and REMOTES.PlaceTower then
-            local slots, towers = getSlots(), getMyTowers()
-            if #towers < #slots then
-                for i = #towers + 1, math.min(#towers + 3, #slots) do
-                    local slot = slots[i]
-                    if slot then
-                        safe(function() REMOTES.PlaceTower:FireServer(G.PlaceSlot, slot.CFrame) end)
-                        task.wait(0.15)
-                    end
-                end
-            end
+        local char = lp.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            if G.AutoRaid and G.PosRaid and (hrp.Position - G.PosRaid.Position).Magnitude > 50 then task.wait(1) if G.AutoRaid then tpTo(G.PosRaid) end end
+            if G.AutoCassino and G.PosCassino and (hrp.Position - G.PosCassino.Position).Magnitude > 50 then task.wait(1) if G.AutoCassino then tpTo(G.PosCassino) end end
+            if G.AutoEasy and G.PosEasy and (hrp.Position - G.PosEasy.Position).Magnitude > 50 then task.wait(1) if G.AutoEasy then tpTo(G.PosEasy) end end
+            if G.AutoNormal and G.PosNormal and (hrp.Position - G.PosNormal.Position).Magnitude > 50 then task.wait(1) if G.AutoNormal then tpTo(G.PosNormal) end end
+            if G.AutoHell and G.PosHell and (hrp.Position - G.PosHell.Position).Magnitude > 50 then task.wait(1) if G.AutoHell then tpTo(G.PosHell) end end
         end
         task.wait(1)
     end
 end)
 
-task.spawn(function()
-    while G.Running do
-        if G.AutoUpgrade and REMOTES.UpgradeTower then
-            for _, tower in ipairs(getMyTowers()) do
-                local lvl = tower:FindFirstChild("Level") or tower:FindFirstChild("Upgrades") or tower:FindFirstChild("Tier")
-                if (lvl and lvl.Value or 0) < G.MaxLevel then
-                    safe(function() REMOTES.UpgradeTower:FireServer(tower) end) task.wait(0.1)
-                end
-            end
-        end
-        task.wait(1.2)
-    end
-end)
-
-task.spawn(function()
-    while G.Running do
-        if G.AutoSell and REMOTES.SellTower then
-            for _, tower in ipairs(getMyTowers()) do
-                local lvl = tower:FindFirstChild("Level")
-                if lvl and lvl.Value >= G.MaxLevel then safe(function() REMOTES.SellTower:FireServer(tower) end) task.wait(0.2) end
-            end
-        end
-        task.wait(2)
-    end
-end)
-
 -- ══════════════════════════════════════════════
---  MACRO (AGORA COM LOOP E SALVAMENTO)
+--  SISTEMA DE MACRO MULTI-MODO
 -- ══════════════════════════════════════════════
 local recordConn = nil
-local function startRecording()
-    G.IsRecording = true G.IsPlaying = false G.MacroCache = {} G.RecordStartTime = os.clock()
+local function startRecording(typeName)
+    G.IsRecording = true G.RecordType = typeName
+    if typeName == "Raid" then G.MacroRaid = {} elseif typeName == "Cassino" then G.MacroCassino = {} else G.MacroChall = {} end
+    G.RecordStartTime = os.clock()
+    
     recordConn = UserInputService.InputBegan:Connect(function(input, gp)
         if gp or not G.IsRecording then return end
         local now = os.clock() - G.RecordStartTime
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            table.insert(G.MacroCache, { Type = "Click", X = input.Position.X, Y = input.Position.Y, Time = now })
+            local entry = { Type = "Click", X = input.Position.X, Y = input.Position.Y, Time = now }
+            if G.RecordType == "Raid" then table.insert(G.MacroRaid, entry)
+            elseif G.RecordType == "Cassino" then table.insert(G.MacroCassino, entry)
+            else table.insert(G.MacroChall, entry) end
         end
     end)
 end
+
 local function stopRecording() G.IsRecording = false if recordConn then recordConn:Disconnect() end end
 
 local playTask = nil
 local function stopPlayback() G.IsPlaying = false if playTask then task.cancel(playTask) end end
 local function playMacro()
-    if #G.MacroCache == 0 then return end
+    local macro = G.MacroChall
+    if G.ActiveMacro == "Raid" then macro = G.MacroRaid
+    elseif G.ActiveMacro == "Cassino" then macro = G.MacroCassino end
+
+    if #macro == 0 then 
+        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Aviso", Text = "O Macro para " .. G.ActiveMacro .. " está vazio!", Duration = 3})
+        return 
+    end
     G.IsPlaying = true
     playTask = task.spawn(function()
         repeat
             local start = os.clock()
-            for _, a in ipairs(G.MacroCache) do
+            for _, a in ipairs(macro) do
                 if not G.IsPlaying then break end
                 local waitTime = (start + a.Time) - os.clock()
                 if waitTime > 0 then task.wait(waitTime) end
@@ -189,11 +139,38 @@ local function playMacro()
 end
 
 -- ══════════════════════════════════════════════
+--  REMOTES E COMBATE
+-- ══════════════════════════════════════════════
+local REMOTES = { StartWave=nil, PlaceTower=nil, UpgradeTower=nil, SellTower=nil }
+local PATTERNS = { StartWave = {"wave","start"}, PlaceTower = {"place","spawn","deploy"}, UpgradeTower = {"upgrade","level"}, SellTower = {"sell","remove"} }
+local function matchesPattern(name, list) name = name:lower() for _, p in ipairs(list) do if name:find(p) then return true end end return false end
+local function scanRemotes()
+    local function scan(parent)
+        for _, v in ipairs(parent:GetDescendants()) do
+            if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+                for key, patterns in pairs(PATTERNS) do if not REMOTES[key] and matchesPattern(v.Name, patterns) then REMOTES[key] = v end end
+            end
+        end
+    end
+    pcall(scan, ReplicatedStorage) pcall(scan, workspace)
+end
+task.spawn(function() while G.Running do scanRemotes() task.wait(4) end end)
+local function safe(fn, ...) local ok, err = pcall(fn, ...) if not ok then warn("[STD] " .. tostring(err)) end end
+
+local slotCache, towerCache, cacheTime = {}, {}, 0
+local function getSlots() if os.clock() - cacheTime < 2 then return slotCache end cacheTime = os.clock() slotCache = {} for _, v in ipairs(workspace:GetDescendants()) do if v:IsA("BasePart") and (v.Name:lower():find("slot") or v.Name:lower():find("node") or v.Name:lower():find("point")) then table.insert(slotCache, v) end end return slotCache end
+local function getMyTowers() if os.clock() - cacheTime < 2 then return towerCache end towerCache = {} for _, v in ipairs(workspace:GetDescendants()) do if v:IsA("Model") then local ow = v:FindFirstChild("Owner") or v:FindFirstChild("PlayerId") if ow and (ow.Value == lp.UserId or ow.Value == lp.Name) then table.insert(towerCache, v) end end end return towerCache end
+
+task.spawn(function() while G.Running do if G.AutoWave and REMOTES.StartWave then safe(function() REMOTES.StartWave:FireServer() end) end task.wait(G.WaveDelay) end end)
+task.spawn(function() while G.Running do if G.AutoPlace and REMOTES.PlaceTower then local slots, towers = getSlots(), getMyTowers() if #towers < #slots then for i = #towers + 1, math.min(#towers + 3, #slots) do local slot = slots[i] if slot then safe(function() REMOTES.PlaceTower:FireServer(G.PlaceSlot, slot.CFrame) end) task.wait(0.15) end end end end task.wait(1) end end)
+task.spawn(function() while G.Running do if G.AutoUpgrade and REMOTES.UpgradeTower then for _, tower in ipairs(getMyTowers()) do local lvl = tower:FindFirstChild("Level") or tower:FindFirstChild("Upgrades") or tower:FindFirstChild("Tier") if (lvl and lvl.Value or 0) < G.MaxLevel then safe(function() REMOTES.UpgradeTower:FireServer(tower) end) task.wait(0.1) end end end task.wait(1.2) end end)
+task.spawn(function() while G.Running do if G.AutoSell and REMOTES.SellTower then for _, tower in ipairs(getMyTowers()) do local lvl = tower:FindFirstChild("Level") if lvl and lvl.Value >= G.MaxLevel then safe(function() REMOTES.SellTower:FireServer(tower) end) task.wait(0.2) end end end task.wait(2) end end)
+
+-- ══════════════════════════════════════════════
 --  PREMIUM UI
 -- ══════════════════════════════════════════════
 local playerGui = lp:WaitForChild("PlayerGui")
 if playerGui:FindFirstChild("STD_Mobile") then playerGui:FindFirstChild("STD_Mobile"):Destroy() end
-
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name, ScreenGui.ResetOnSpawn, ScreenGui.IgnoreGuiInset, ScreenGui.Parent = "STD_Mobile", false, true, playerGui
 
@@ -214,7 +191,6 @@ local stroke = Instance.new("UIStroke", Main) stroke.Color = Theme.Border stroke
 local TopBar = Instance.new("Frame")
 TopBar.Size = UDim2.new(1, 0, 0, 50) TopBar.BackgroundColor3 = Theme.Surface TopBar.Parent = Main
 Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 12)
-
 local Title = Instance.new("TextLabel")
 Title.Text, Title.Size, Title.Position = "⟡ Sorcerer TD", UDim2.new(1, -120, 1, 0), UDim2.new(0, 16, 0, 0)
 Title.BackgroundTransparency, Title.TextColor3, Title.Font, Title.TextSize = 1, Theme.Text, Enum.Font.GothamBold, 15
@@ -229,41 +205,24 @@ local function createTopBtn(text, posX, color, callback)
     btn.MouseButton1Click:Connect(callback) return btn
 end
 
-local ScaleBtn = createTopBtn("⤢", -128, Theme.Border, function()
-    G.UiScale = (G.UiScale == 1 and 0.75) or (G.UiScale == 0.75 and 1.2) or 1
-    TweenService:Create(Main, TweenInfo.new(0.2), {Size = UDim2.new(0, W * G.UiScale, 0, (expanded and H or 50) * G.UiScale)}):Play()
-end)
+createTopBtn("⤢", -128, Theme.Border, function() G.UiScale = (G.UiScale == 1 and 0.75) or (G.UiScale == 0.75 and 1.2) or 1 TweenService:Create(Main, TweenInfo.new(0.2), {Size = UDim2.new(0, W * G.UiScale, 0, (expanded and H or 50) * G.UiScale)}):Play() end)
 createTopBtn("✕", -44, Theme.Red, function() G.Running = false ScreenGui:Destroy() end)
 local MinBtn = createTopBtn("−", -86, Theme.Border, function() end)
 
 local dragging, dragInput, dragStart, startPos
-TopBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true dragStart = input.Position startPos = Main.Position
-    end
-end)
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local delta = input.Position - dragStart
-        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    elseif dragging and input.UserInputType == Enum.UserInputType.Touch then
-        local delta = input.Position - dragStart
-        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
+TopBar.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true dragStart = input.Position startPos = Main.Position end end)
+UserInputService.InputChanged:Connect(function(input) if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then local delta = input.Position - dragStart Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end)
 UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
 
 local TabContainer = Instance.new("Frame")
 TabContainer.Size, TabContainer.Position = UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0, 50)
 TabContainer.BackgroundColor3, TabContainer.Parent = Theme.BG, Main
-
 local TabList = Instance.new("Frame")
 TabList.Size, TabList.Position = UDim2.new(1, -16, 1, -8), UDim2.new(0, 8, 0, 4)
 TabList.BackgroundTransparency, TabList.Parent = 1, TabContainer
 local TabLayout = Instance.new("UIListLayout", TabList)
 TabLayout.FillDirection, TabLayout.Padding, TabLayout.SortOrder = Enum.FillDirection.Horizontal, UDim.new(0, 6), Enum.SortOrder.LayoutOrder
 TabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
 local Pages = Instance.new("Frame")
 Pages.Size, Pages.Position = UDim2.new(1, 0, 1, -90), UDim2.new(0, 0, 0, 90)
 Pages.BackgroundTransparency, Pages.Parent = 1, Main
@@ -277,8 +236,8 @@ end
 
 local function createTab(name, order)
     local btn = Instance.new("TextButton")
-    btn.Size, btn.BackgroundColor3, btn.Text, btn.TextColor3 = UDim2.new(0.33, -4, 1, 0), Theme.Surface, name, Theme.Dim
-    btn.Font, btn.TextSize, btn.LayoutOrder, btn.Parent = Enum.Font.GothamSemibold, 12, order, TabList
+    btn.Size, btn.BackgroundColor3, btn.Text, btn.TextColor3 = UDim2.new(0.24, -4, 1, 0), Theme.Surface, name, Theme.Dim
+    btn.Font, btn.TextSize, btn.LayoutOrder, btn.Parent = Enum.Font.GothamSemibold, 11, order, TabList
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     local page = Instance.new("ScrollingFrame")
     page.Size, page.Position, page.BackgroundTransparency = UDim2.new(1, -16, 1, -16), UDim2.new(0, 8, 0, 8), 1
@@ -369,7 +328,9 @@ local function createSlider(lbl, order, parent, minV, maxV, getF, setF, fmt)
     UserInputService.InputEnded:Connect(function() dragging = false end)
 end
 
--- MONTAGEM
+-- ══════════════════════════════════════════════
+--  MONTAGEM DAS ABAS
+-- ══════════════════════════════════════════════
 local TabHome, PageHome = createTab("HOME", 1)
 createSection("Status", 1, PageHome)
 local statusLbl = Instance.new("TextLabel")
@@ -385,35 +346,73 @@ task.spawn(function()
         task.wait(1.5)
     end
 end)
-createSection("Auto-Retorno Lobby", 3, PageHome)
-createButton("📍 Salvar Posição: Raid", 4, PageHome, Theme.Border, function() if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then G.PosRaid = lp.Character.HumanoidRootPart.CFrame end end)
-createButton("📍 Salvar Posição: Cassino", 5, PageHome, Theme.Border, function() if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then G.PosCassino = lp.Character.HumanoidRootPart.CFrame end end)
-createToggle("Loop Auto Raid", "Volta ao lobby auto", 6, PageHome, function() return G.AutoRaid end, function(v) G.AutoRaid = v end)
-createToggle("Loop Auto Cassino", "Volta ao cassino auto", 7, PageHome, function() return G.AutoCassino end, function(v) G.AutoCassino = v end)
 
-local TabMacro, PageMacro = createTab("MACRO", 2)
-createSection("Gravação", 1, PageMacro)
-local recBtn = createButton("● Iniciar Gravação", 2, PageMacro, Theme.Red, function()
-    if G.IsRecording then stopRecording() recBtn.Text = "● Iniciar Gravação"
-    else startRecording() recBtn.Text = "■ Parar Gravação" end
-end)
-local playBtn = createButton("▶ Reproduzir Macro", 3, PageMacro, Theme.Green, function()
-    if G.IsPlaying then stopPlayback()
-    elseif #G.MacroCache > 0 then playMacro() end
-end)
-createToggle("Loop no Macro", "Repetir macro infinitamente", 4, PageMacro, function() return G.IsLooping end, function(v) G.IsLooping = v end)
+-- ABA MULTI-MACRO
+local TabMult, PageMult = createTab("MODOS", 2)
 
+createSection("Selecionar Modo Ativo", 1, PageMult)
+local activeLbl = Instance.new("TextLabel")
+activeLbl.Size, activeLbl.BackgroundColor3, activeLbl.Text, activeLbl.TextColor3 = UDim2.new(1, 0, 0, 36), Theme.Border, "Modo Ativo: RAID", Theme.Text
+activeLbl.Font, activeLbl.TextSize, activeLbl.LayoutOrder, activeLbl.Parent = Enum.Font.GothamBold, 13, 2, PageMult
+Instance.new("UICorner", activeLbl).CornerRadius = UDim.new(0, 8)
+
+local function changeActiveMode(mode)
+    G.ActiveMacro = mode
+    activeLbl.Text = "Modo Ativo: " .. string.upper(mode)
+end
+
+createButton("Setar Macro: RAID", 3, PageMult, Theme.Surface, function() changeActiveMode("Raid") end)
+createButton("Setar Macro: CASSINO", 4, PageMult, Theme.Surface, function() changeActiveMode("Cassino") end)
+createButton("Setar Macro: CHALLENGES", 5, PageMult, Theme.Surface, function() changeActiveMode("Chall") end)
+
+createSection("Gravação de Macro", 6, PageMult)
+local function makeRecBtn(txt, order, typeName)
+    local btn = createButton(txt, order, PageMult, Theme.Border, function()
+        if G.IsRecording then
+            stopRecording()
+            btn.Text = txt
+            btn.BackgroundColor3 = Theme.Border
+        else
+            startRecording(typeName)
+            btn.Text = "■ Parar Gravação (" .. typeName .. ")"
+            btn.BackgroundColor3 = Theme.Red
+        end
+    end)
+end
+makeRecBtn("Gravar Cliques: Raid", 7, "Raid")
+makeRecBtn("Gravar Cliques: Cassino", 8, "Cassino")
+makeRecBtn("Gravar Cliques: Challenges", 9, "Chall")
+
+createSection("Controle do Loop", 10, PageMult)
+local playBtn = createButton("▶ Iniciar Loop do Modo Ativo", 11, PageMult, Theme.Green, function()
+    if G.IsPlaying then
+        stopPlayback()
+        playBtn.Text = "▶ Iniciar Loop do Modo Ativo"
+        playBtn.BackgroundColor3 = Theme.Green
+    else
+        playMacro()
+        playBtn.Text = "■ Parar Loop"
+        playBtn.BackgroundColor3 = Theme.Red
+    end
+end)
+
+-- NOVO BOTÃO DE AVISO NO DISCORD
+createSection("Aviso no Discord", 12, PageMult)
+createButton("Avisar no Discord (Webhook)", 13, PageMult, Color3.fromRGB(88, 101, 242), function()
+    sendDiscordAlert("Mythic Shard / Item Desejado")
+end)
+
+-- ABA AUTO
 local TabAuto, PageAuto = createTab("AUTO", 3)
 createSection("Combate", 1, PageAuto)
 createToggle("Auto Wave", "Inicia onda automaticamente", 2, PageAuto, function() return G.AutoWave end, function(v) G.AutoWave = v end)
 createToggle("Auto Place", "Coloca torres", 3, PageAuto, function() return G.AutoPlace end, function(v) G.AutoPlace = v end)
 createToggle("Auto Upgrade", "Sobe torres", 4, PageAuto, function() return G.AutoUpgrade end, function(v) G.AutoUpgrade = v end)
 createToggle("Auto Sell", "Vende torres", 5, PageAuto, function() return G.AutoSell end, function(v) G.AutoSell = v end)
-
 createSection("Configurações (Sliders)", 6, PageAuto)
 createSlider("Delay entre ondas", 7, PageAuto, 0.5, 5, function() return G.WaveDelay end, function(v) G.WaveDelay = v end, "%.1fs")
 createSlider("Nível máximo", 8, PageAuto, 1, 20, function() return G.MaxLevel end, function(v) G.MaxLevel = math.floor(v) end, "%d")
 createSlider("Slot da Unidade", 9, PageAuto, 1, 6, function() return G.PlaceSlot end, function(v) G.PlaceSlot = math.floor(v) end, "%d")
 
 switchTab(TabHome, PageHome)
-print("[STD] UI Premium Atualizada.")
+print("[STD] UI Premium com Discord Webhook carregada.")
