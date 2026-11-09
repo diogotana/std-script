@@ -7,6 +7,7 @@ local TweenService      = game:GetService("TweenService")
 local UserInputService  = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService       = game:GetService("HttpService")
 
 local lp = Players.LocalPlayer
 
@@ -18,20 +19,57 @@ local G = {
     WaveDelay    = 1.5,
     MaxLevel     = 5,
     Running      = true,
-    
+
     -- Macro
     IsRecording  = false,
     IsPlaying    = false,
     MacroCache   = {},
     RecordStartTime = 0,
-    
+
     -- Teleportes e Loop
     PosRaid      = nil,
     PosCassino   = nil,
     AutoRaid     = false,
     AutoCassino  = false,
-    InMatch      = false,
 }
+
+-- ══════════════════════════════════════════════
+--  SISTEMA DE SALVAR/CARREGAR MACRO
+-- ══════════════════════════════════════════════
+local MACRO_FILE = "STD_Macro.json"
+
+local function saveMacroToFile()
+    if #G.MacroCache == 0 then return false end
+    local success, encoded = pcall(function()
+        return HttpService:JSONEncode(G.MacroCache)
+    end)
+    if success then
+        local writeSuccess = pcall(function()
+            writefile(MACRO_FILE, encoded)
+        end)
+        return writeSuccess
+    end
+    return false
+end
+
+local function loadMacroFromFile()
+    local exists = pcall(function() return isfile(MACRO_FILE) end)
+    if not exists then return false end
+    
+    local readSuccess, content = pcall(function()
+        return readfile(MACRO_FILE)
+    end)
+    if readSuccess and content then
+        local decodeSuccess, data = pcall(function()
+            return HttpService:JSONDecode(content)
+        end)
+        if decodeSuccess and type(data) == "table" then
+            G.MacroCache = data
+            return true
+        end
+    end
+    return false
+end
 
 -- ══════════════════════════════════════════════
 --  SISTEMA DE TELEPORTE E AUTO-RETORNO
@@ -42,38 +80,23 @@ local function tpTo(cframe)
     end
 end
 
--- Lógica para detectar se está no lobby (simplificada: se não tem inimigos/torres, é lobby)
-local function isInLobby()
-    -- Se o jogador não tem torres e não tem ouro alto, provavelmente tá no lobby
-    -- Vamos usar o tempo e a posição pra saber se a partida acabou.
-    return true -- Simulação: o loop vai tentar ir pro local se o Auto estiver ligado
-end
-
 task.spawn(function()
     while G.Running do
-        -- Se o cara ativou Auto Raid e tem a posição salva
         if G.AutoRaid and G.PosRaid then
             local char = lp.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            -- Se o jogador estiver muito longe do botão (ex: foi mandado pro lobby)
             if hrp and (hrp.Position - G.PosRaid.Position).Magnitude > 50 then
-                -- Verifica se não está em partida (você pode ajustar isso)
-                task.wait(2) -- Delay de segurança
-                if G.AutoRaid then
-                    tpTo(G.PosRaid)
-                end
+                task.wait(2)
+                if G.AutoRaid then tpTo(G.PosRaid) end
             end
         end
-        
-        -- Se o cara ativou Auto Cassino e tem a posição salva
+
         if G.AutoCassino and G.PosCassino then
             local char = lp.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if hrp and (hrp.Position - G.PosCassino.Position).Magnitude > 50 then
                 task.wait(2)
-                if G.AutoCassino then
-                    tpTo(G.PosCassino)
-                end
+                if G.AutoCassino then tpTo(G.PosCassino) end
             end
         end
         task.wait(1)
@@ -131,7 +154,7 @@ local function safe(fn, ...)
 end
 
 -- ══════════════════════════════════════════════
---  UTILITÁRIOS DE JOGO (Slots/Torres)
+--  UTILITÁRIOS DE JOGO
 -- ══════════════════════════════════════════════
 local slotCache, towerCache, cacheTime = {}, {}, 0
 local CACHE_TTL = 2
@@ -262,7 +285,7 @@ end
 local function playMacro()
     if G.IsRecording or #G.MacroCache == 0 then return end
     G.IsPlaying = true
-    
+
     playTask = task.spawn(function()
         while G.IsPlaying do
             local start = os.clock()
@@ -393,7 +416,7 @@ do
     end)
 end
 
-local CONTENT_H = 520
+local CONTENT_H = 600
 local Content = Instance.new("ScrollingFrame")
 Content.Size, Content.Position = UDim2.new(1, 0, 0, CONTENT_H), UDim2.new(0, 0, 0, 50)
 Content.BackgroundTransparency, Content.BorderSizePixel = 1, 0
@@ -594,31 +617,60 @@ local PlayBtn = makeButton("▶ Reproduzir Macro", 3, Color3.fromRGB(50, 150, 80
     end
 end)
 
+-- NOVOS BOTÕES DE SALVAR E CARREGAR MACRO
+local SaveBtn = makeButton("💾 Salvar Macro (PC/Mobile)", 4, Color3.fromRGB(50, 80, 150), function()
+    if #G.MacroCache > 0 then
+        if saveMacroToFile() then
+            SaveBtn.Text = "✅ Macro Salvo!"
+            task.wait(2)
+            SaveBtn.Text = "💾 Salvar Macro (PC/Mobile)"
+        else
+            SaveBtn.Text = "❌ Erro ao Salvar"
+            task.wait(2)
+            SaveBtn.Text = "💾 Salvar Macro (PC/Mobile)"
+        end
+    else
+        SaveBtn.Text = "⚠️ Nada Gravado"
+        task.wait(2)
+        SaveBtn.Text = "💾 Salvar Macro (PC/Mobile)"
+    end
+end)
+
+local LoadBtn = makeButton("📂 Carregar Macro", 5, Color3.fromRGB(150, 100, 50), function()
+    if loadMacroFromFile() then
+        LoadBtn.Text = "✅ Macro Carregado!"
+        task.wait(2)
+        LoadBtn.Text = "📂 Carregar Macro"
+    else
+        LoadBtn.Text = "❌ Nenhum Macro Salvo"
+        task.wait(2)
+        LoadBtn.Text = "📂 Carregar Macro"
+    end
+end)
+
 -- Seção de Teleporte / Auto-Retorno
-sectionLbl("Auto-Retorno Lobby", 4)
-makeButton("Salvar Posição: Raid", 5, Color3.fromRGB(60, 60, 85), function()
+sectionLbl("Auto-Retorno Lobby", 6)
+makeButton("Salvar Posição: Raid", 7, Color3.fromRGB(60, 60, 85), function()
     if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
         G.PosRaid = lp.Character.HumanoidRootPart.CFrame
     end
 end)
-makeButton("Salvar Posição: Cassino", 6, Color3.fromRGB(60, 60, 85), function()
+makeButton("Salvar Posição: Cassino", 8, Color3.fromRGB(60, 60, 85), function()
     if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
         G.PosCassino = lp.Character.HumanoidRootPart.CFrame
     end
 end)
-makeToggle("Loop Auto Raid", "Volta pra Raid sozinho", 7, function() return G.AutoRaid end, function(v) G.AutoRaid = v end)
-makeToggle("Loop Auto Cassino", "Volta pro Cassino sozinho", 8, function() return G.AutoCassino end, function(v) G.AutoCassino = v end)
+makeToggle("Loop Auto Raid", "Volta pra Raid sozinho", 9, function() return G.AutoRaid end, function(v) G.AutoRaid = v end)
+makeToggle("Loop Auto Cassino", "Volta pro Cassino sozinho", 10, function() return G.AutoCassino end, function(v) G.AutoCassino = v end)
 
 -- Seção de Automação
-sectionLbl("Automação de Jogo", 9)
-makeToggle("Auto Wave", "Inicia onda automaticamente", 10, function() return G.AutoWave end, function(v) G.AutoWave = v end)
-makeToggle("Auto Place", "Coloca torres nos slots livres", 11, function() return G.AutoPlace end, function(v) G.AutoPlace = v end)
-makeToggle("Auto Upgrade", "Sobe torres até o nível máximo", 12, function() return G.AutoUpgrade end, function(v) G.AutoUpgrade = v end)
-makeToggle("Auto Sell", "Vende torres no nível máximo", 13, function() return G.AutoSell end, function(v) G.AutoSell = v end)
+sectionLbl("Automação de Jogo", 11)
+makeToggle("Auto Wave", "Inicia onda automaticamente", 12, function() return G.AutoWave end, function(v) G.AutoWave = v end)
+makeToggle("Auto Place", "Coloca torres nos slots livres", 13, function() return G.AutoPlace end, function(v) G.AutoPlace = v end)
+makeToggle("Auto Upgrade", "Sobe torres até o nível máximo", 14, function() return G.AutoUpgrade end, function(v) G.AutoUpgrade = v end)
+makeToggle("Auto Sell", "Vende torres no nível máximo", 15, function() return G.AutoSell end, function(v) G.AutoSell = v end)
 
 -- Configurações
-sectionLbl("Configurações", 14)
-makeSlider("Delay entre ondas", 15, 0.5, 5, function() return G.WaveDelay end, function(v) G.WaveDelay = v end, "%.1fs")
-makeSlider("Nível máximo", 16, 1, 20, function() return G.MaxLevel end, function(v) G.MaxLevel = math.floor(v) end, "%d")
-
-print("[STD] GUI pronta e atualizada.")
+sectionLbl("Configurações", 16)
+makeSlider("Delay entre ondas", 17, 0.5, 5, function() return G.WaveDelay end, function(v) G.WaveDelay = v end, "%.1fs")
+makeSlider("Nível máximo", 18, 1, 20
