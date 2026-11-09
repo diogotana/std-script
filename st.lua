@@ -1,4 +1,4 @@
--- STD_Delta.lua — Universal (Delta Mobile + Real PC)
+-- STD_Delta.lua — Premium UI Edition
 -- game: Sorcerer Tower Defense | 17720162456
 
 local Players           = game:GetService("Players")
@@ -18,15 +18,13 @@ local G = {
     AutoSell     = false,
     WaveDelay    = 1.5,
     MaxLevel     = 5,
+    PlaceSlot    = 1,
+    UiScale      = 1,
     Running      = true,
-
-    -- Macro
     IsRecording  = false,
     IsPlaying    = false,
     MacroCache   = {},
     RecordStartTime = 0,
-
-    -- Teleportes e Loop
     PosRaid      = nil,
     PosCassino   = nil,
     AutoRaid     = false,
@@ -40,39 +38,24 @@ local MACRO_FILE = "STD_Macro.json"
 
 local function saveMacroToFile()
     if #G.MacroCache == 0 then return false end
-    local success, encoded = pcall(function()
-        return HttpService:JSONEncode(G.MacroCache)
-    end)
-    if success then
-        local writeSuccess = pcall(function()
-            writefile(MACRO_FILE, encoded)
-        end)
-        return writeSuccess
-    end
+    local success, encoded = pcall(function() return HttpService:JSONEncode(G.MacroCache) end)
+    if success then return pcall(function() writefile(MACRO_FILE, encoded) end) end
     return false
 end
 
 local function loadMacroFromFile()
     local exists = pcall(function() return isfile(MACRO_FILE) end)
     if not exists then return false end
-    
-    local readSuccess, content = pcall(function()
-        return readfile(MACRO_FILE)
-    end)
+    local readSuccess, content = pcall(function() return readfile(MACRO_FILE) end)
     if readSuccess and content then
-        local decodeSuccess, data = pcall(function()
-            return HttpService:JSONDecode(content)
-        end)
-        if decodeSuccess and type(data) == "table" then
-            G.MacroCache = data
-            return true
-        end
+        local decodeSuccess, data = pcall(function() return HttpService:JSONDecode(content) end)
+        if decodeSuccess and type(data) == "table" then G.MacroCache = data return true end
     end
     return false
 end
 
 -- ══════════════════════════════════════════════
---  SISTEMA DE TELEPORTE E AUTO-RETORNO
+--  TELEPORTE E AUTO-RETORNO
 -- ══════════════════════════════════════════════
 local function tpTo(cframe)
     if cframe and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
@@ -90,7 +73,6 @@ task.spawn(function()
                 if G.AutoRaid then tpTo(G.PosRaid) end
             end
         end
-
         if G.AutoCassino and G.PosCassino then
             local char = lp.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -116,9 +98,7 @@ local PATTERNS = {
 
 local function matchesPattern(name, list)
     name = name:lower()
-    for _, p in ipairs(list) do
-        if name:find(p) then return true end
-    end
+    for _, p in ipairs(list) do if name:find(p) then return true end end
     return false
 end
 
@@ -142,10 +122,7 @@ local function scanRemotes()
 end
 
 task.spawn(function()
-    while G.Running do
-        scanRemotes()
-        task.wait(4)
-    end
+    while G.Running do scanRemotes() task.wait(4) end
 end)
 
 local function safe(fn, ...)
@@ -154,7 +131,7 @@ local function safe(fn, ...)
 end
 
 -- ══════════════════════════════════════════════
---  UTILITÁRIOS DE JOGO
+--  UTILITÁRIOS
 -- ══════════════════════════════════════════════
 local slotCache, towerCache, cacheTime = {}, {}, 0
 local CACHE_TTL = 2
@@ -178,17 +155,15 @@ local function refreshCache()
     end
 end
 
-local function getSlots()   refreshCache() return slotCache  end
+local function getSlots() refreshCache() return slotCache end
 local function getMyTowers() refreshCache() return towerCache end
 
 -- ══════════════════════════════════════════════
---  LOOPS DE AUTOMAÇÃO
+--  LOOPS DE AUTOMAÇÃO (Inalterados)
 -- ══════════════════════════════════════════════
 task.spawn(function()
     while G.Running do
-        if G.AutoWave and REMOTES.StartWave then
-            safe(function() REMOTES.StartWave:FireServer() end)
-        end
+        if G.AutoWave and REMOTES.StartWave then safe(function() REMOTES.StartWave:FireServer() end) end
         task.wait(G.WaveDelay)
     end
 end)
@@ -196,14 +171,13 @@ end)
 task.spawn(function()
     while G.Running do
         if G.AutoPlace and REMOTES.PlaceTower then
-            local slots  = getSlots()
-            local towers = getMyTowers()
+            local slots, towers = getSlots(), getMyTowers()
             if #towers < #slots then
                 for i = #towers + 1, math.min(#towers + 3, #slots) do
                     local slot = slots[i]
                     if slot then
-                        safe(function() REMOTES.PlaceTower:FireServer(slot.CFrame) end)
-                        safe(function() REMOTES.PlaceTower:FireServer(slot.Position) end)
+                        safe(function() REMOTES.PlaceTower:FireServer(G.PlaceSlot, slot.CFrame) end)
+                        safe(function() REMOTES.PlaceTower:FireServer(G.PlaceSlot, slot.Position) end)
                         task.wait(0.15)
                     end
                 end
@@ -245,17 +219,12 @@ task.spawn(function()
 end)
 
 -- ══════════════════════════════════════════════
---  SISTEMA DE MACRO (GRAVAR/REPRODUZIR)
+--  MACRO (Gravar/Reproduzir)
 -- ══════════════════════════════════════════════
 local recordConn = nil
-
 local function startRecording()
     if G.IsRecording then return end
-    G.IsRecording = true
-    G.IsPlaying = false
-    G.MacroCache = {}
-    G.RecordStartTime = os.clock()
-
+    G.IsRecording = true G.IsPlaying = false G.MacroCache = {} G.RecordStartTime = os.clock()
     recordConn = UserInputService.InputBegan:Connect(function(input, gp)
         if gp or not G.IsRecording then return end
         local now = os.clock() - G.RecordStartTime
@@ -276,7 +245,6 @@ local function stopRecording()
 end
 
 local playTask = nil
-
 local function stopPlayback()
     G.IsPlaying = false
     if playTask then task.cancel(playTask) playTask = nil end
@@ -285,7 +253,6 @@ end
 local function playMacro()
     if G.IsRecording or #G.MacroCache == 0 then return end
     G.IsPlaying = true
-
     playTask = task.spawn(function()
         while G.IsPlaying do
             local start = os.clock()
@@ -293,7 +260,6 @@ local function playMacro()
                 if not G.IsPlaying then break end
                 local waitTime = (start + a.Time) - os.clock()
                 if waitTime > 0 then task.wait(waitTime) end
-
                 if a.Type == "Click" then
                     VirtualInputManager:SendMouseButtonEvent(a.X, a.Y, 0, true, game, 1)
                     task.wait(0.03)
@@ -313,366 +279,358 @@ local function playMacro()
 end
 
 -- ══════════════════════════════════════════════
---  GUI - DESIGN MELHORADO
+--  PREMIUM UI - INÍCIO
 -- ══════════════════════════════════════════════
 local playerGui = lp:WaitForChild("PlayerGui")
-if playerGui:FindFirstChild("STD_Mobile") then
-    playerGui:FindFirstChild("STD_Mobile"):Destroy()
-end
+if playerGui:FindFirstChild("STD_Mobile") then playerGui:FindFirstChild("STD_Mobile"):Destroy() end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name           = "STD_Mobile"
-ScreenGui.ResetOnSpawn   = false
+ScreenGui.Name = "STD_Mobile"
+ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.DisplayOrder   = 999
-ScreenGui.Parent         = playerGui
+ScreenGui.DisplayOrder = 999
+ScreenGui.Parent = playerGui
 
-local C = {
-    BG      = Color3.fromRGB(12, 12, 18),
-    Surface = Color3.fromRGB(22, 22, 35),
-    Accent  = Color3.fromRGB(120, 60, 220),
-    AccentL = Color3.fromRGB(160, 100, 255),
-    Text    = Color3.fromRGB(240, 240, 250),
-    Dim     = Color3.fromRGB(130, 130, 150),
-    Green   = Color3.fromRGB(80, 220, 120),
-    Red     = Color3.fromRGB(230, 70, 70),
-    Border  = Color3.fromRGB(50, 50, 75),
+local Theme = {
+    BG      = Color3.fromRGB(15, 15, 20),
+    Surface = Color3.fromRGB(24, 24, 32),
+    Accent  = Color3.fromRGB(138, 43, 226),  -- Roxo JJK
+    AccentL = Color3.fromRGB(180, 100, 255),
+    Text    = Color3.fromRGB(240, 240, 245),
+    Dim     = Color3.fromRGB(140, 140, 155),
+    Green   = Color3.fromRGB(50, 200, 100),
+    Red     = Color3.fromRGB(220, 60, 60),
+    Border  = Color3.fromRGB(45, 45, 60),
+    Hover   = Color3.fromRGB(35, 35, 45)
 }
 
-local W = 310
+local W, H = 340, 480
 local Main = Instance.new("Frame")
-Main.Size              = UDim2.new(0, W, 0, 50)
-Main.Position          = UDim2.new(0, 10, 0, 60)
-Main.BackgroundColor3  = C.BG
-Main.BorderSizePixel   = 0
-Main.ClipsDescendants  = true
-Main.Parent            = ScreenGui
-Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 14)
-local stroke = Instance.new("UIStroke", Main)
-stroke.Color, stroke.Thickness, stroke.Transparency = C.Accent, 1.5, 0.2
+Main.Name = "Main"
+Main.Size = UDim2.new(0, W, 0, 50) -- Começa minimizado
+Main.Position = UDim2.new(0.5, -W/2, 0.5, -25)
+Main.BackgroundColor3 = Theme.BG
+Main.BorderSizePixel = 0
+Main.ClipsDescendants = true
+Main.Parent = ScreenGui
 
--- Barra de título
-local Bar = Instance.new("Frame")
-Bar.Size             = UDim2.new(1, 0, 0, 50)
-Bar.BackgroundColor3 = C.Surface
-Bar.BorderSizePixel  = 0
-Bar.ZIndex           = 5
-Bar.Parent           = Main
-Instance.new("UICorner", Bar).CornerRadius = UDim.new(0, 14)
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
+local MainStroke = Instance.new("UIStroke", Main)
+MainStroke.Color = Theme.Border
+MainStroke.Thickness = 1.5
 
-local barFix = Instance.new("Frame")
-barFix.Size             = UDim2.new(1, 0, 0.5, 2)
-barFix.Position         = UDim2.new(0, 0, 0.5, 0)
-barFix.BackgroundColor3 = C.Surface
-barFix.BorderSizePixel  = 0
-barFix.ZIndex           = 4
-barFix.Parent           = Bar
+-- Barra Superior (Title Bar)
+local TopBar = Instance.new("Frame")
+TopBar.Name = "TopBar"
+TopBar.Size = UDim2.new(1, 0, 0, 50)
+TopBar.BackgroundColor3 = Theme.Surface
+TopBar.BorderSizePixel = 0
+TopBar.Parent = Main
+Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 12)
+
+local TopBarFix = Instance.new("Frame")
+TopBarFix.Size = UDim2.new(1, 0, 0.5, 2)
+TopBarFix.Position = UDim2.new(0, 0, 0.5, 0)
+TopBarFix.BackgroundColor3 = Theme.Surface
+TopBarFix.BorderSizePixel = 0
+TopBarFix.Parent = TopBar
 
 local Title = Instance.new("TextLabel")
-Title.Text             = "⟡  Sorcerer TD"
-Title.Size             = UDim2.new(1, -100, 1, 0)
-Title.Position         = UDim2.new(0, 16, 0, 0)
+Title.Text = "⟡ Sorcerer TD"
+Title.Size = UDim2.new(1, -120, 1, 0)
+Title.Position = UDim2.new(0, 16, 0, 0)
 Title.BackgroundTransparency = 1
-Title.TextColor3       = C.Text
-Title.Font             = Enum.Font.GothamBold
-Title.TextSize         = 15
-Title.TextXAlignment   = Enum.TextXAlignment.Left
-Title.ZIndex           = 6
-Title.Parent           = Bar
+Title.TextColor3 = Theme.Text
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 15
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TopBar
 
-local MinBtn = Instance.new("TextButton")
-MinBtn.Text, MinBtn.Size, MinBtn.Position = "−", UDim2.new(0, 36, 0, 36), UDim2.new(1, -86, 0.5, -18)
-MinBtn.BackgroundColor3, MinBtn.TextColor3 = C.Border, C.Text
-MinBtn.Font, MinBtn.TextSize, MinBtn.BorderSizePixel = Enum.Font.GothamBold, 20, 0
-MinBtn.ZIndex, MinBtn.Parent = 7, Bar
-Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 8)
-
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Text, CloseBtn.Size, CloseBtn.Position = "✕", UDim2.new(0, 36, 0, 36), UDim2.new(1, -44, 0.5, -18)
-CloseBtn.BackgroundColor3, CloseBtn.TextColor3 = C.Red, Color3.new(1,1,1)
-CloseBtn.Font, CloseBtn.TextSize, CloseBtn.BorderSizePixel = Enum.Font.GothamBold, 16, 0
-CloseBtn.ZIndex, CloseBtn.Parent = 7, Bar
-Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 8)
-
--- Drag
-do
-    local drag, dragStart, startPos
-    local function beginDrag(pos) drag = true dragStart = pos startPos = Main.Position end
-    local function moveDrag(pos)
-        if not drag then return end
-        local d = pos - dragStart
-        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
-    end
-    local function endDrag() drag = false end
-    Bar.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1 then beginDrag(inp.Position) end
-    end)
-    UserInputService.InputChanged:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseMovement then moveDrag(inp.Position) end
-    end)
-    UserInputService.InputEnded:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1 then endDrag() end
-    end)
+-- Botões do Topo
+local function createTopBtn(text, posX, color, callback)
+    local btn = Instance.new("TextButton")
+    btn.Text, btn.Size, btn.Position = text, UDim2.new(0, 34, 0, 34), UDim2.new(1, posX, 0.5, -17)
+    btn.BackgroundColor3, btn.TextColor3 = color, Theme.Text
+    btn.Font, btn.TextSize, btn.BorderSizePixel = Enum.Font.GothamBold, 16, 0
+    btn.Parent = TopBar
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    btn.MouseEnter:Connect(function() TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = color:Lerp(Color3.new(1,1,1), 0.2)}):Play() end)
+    btn.MouseLeave:Connect(function() TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = color}):Play() end)
+    btn.MouseButton1Click:Connect(callback)
+    return btn
 end
 
-local CONTENT_H = 600
-local Content = Instance.new("ScrollingFrame")
-Content.Size, Content.Position = UDim2.new(1, 0, 0, CONTENT_H), UDim2.new(0, 0, 0, 50)
-Content.BackgroundTransparency, Content.BorderSizePixel = 1, 0
-Content.ScrollBarThickness, Content.ScrollBarImageColor3 = 4, C.Accent
-Content.CanvasSize = UDim2.new(0, 0, 0, 0)
-Content.AutomaticCanvasSize = Enum.AutomaticSize.Y
-Content.Parent = Main
+createTopBtn("✕", -44, Theme.Red, function() G.Running = false ScreenGui:Destroy() end)
+local MinBtn = createTopBtn("−", -86, Theme.Border, function() end)
 
-local Layout = Instance.new("UIListLayout", Content)
-Layout.Padding, Layout.SortOrder = UDim.new(0, 8), Enum.SortOrder.LayoutOrder
-local Pad = Instance.new("UIPadding", Content)
-Pad.PaddingLeft, Pad.PaddingRight = UDim.new(0, 12), UDim.new(0, 12)
-Pad.PaddingTop, Pad.PaddingBottom = UDim.new(0, 10), UDim.new(0, 10)
+-- Drag System
+local dragging, dragInput, dragStart, startPos
+TopBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = Main.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+TopBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
 
+-- Sistema de Abas (Tabs)
+local TabContainer = Instance.new("Frame")
+TabContainer.Size = UDim2.new(1, 0, 0, 40)
+TabContainer.Position = UDim2.new(0, 0, 0, 50)
+TabContainer.BackgroundColor3 = Theme.BG
+TabContainer.BorderSizePixel = 0
+TabContainer.Parent = Main
+
+local TabList = Instance.new("Frame")
+TabList.Size = UDim2.new(1, -16, 1, -8)
+TabList.Position = UDim2.new(0, 8, 0, 4)
+TabList.BackgroundTransparency = 1
+TabList.Parent = TabContainer
+
+local TabLayout = Instance.new("UIListLayout", TabList)
+TabLayout.FillDirection = Enum.FillDirection.Horizontal
+TabLayout.Padding = UDim.new(0, 6)
+TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+TabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+local Pages = Instance.new("Frame")
+Pages.Size = UDim2.new(1, 0, 1, -90)
+Pages.Position = UDim2.new(0, 0, 0, 90)
+Pages.BackgroundTransparency = 1
+Pages.Parent = Main
+
+local function createTab(name, order)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.33, -4, 1, 0)
+    btn.BackgroundColor3 = Theme.Surface
+    btn.Text = name
+    btn.TextColor3 = Theme.Dim
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 12
+    btn.BorderSizePixel = 0
+    btn.LayoutOrder = order
+    btn.Parent = TabList
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    
+    local page = Instance.new("ScrollingFrame")
+    page.Size = UDim2.new(1, -16, 1, -16)
+    page.Position = UDim2.new(0, 8, 0, 8)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ScrollBarThickness = 3
+    page.ScrollBarImageColor3 = Theme.Accent
+    page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    page.Visible = false
+    page.Parent = Pages
+    
+    local pageLayout = Instance.new("UIListLayout", page)
+    pageLayout.Padding = UDim.new(0, 8)
+    pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    return btn, page
+end
+
+local function switchTab(tabBtn, page)
+    for _, v in ipairs(TabList:GetChildren()) do
+        if v:IsA("TextButton") then
+            TweenService:Create(v, TweenInfo.new(0.15), {BackgroundColor3 = Theme.Surface, TextColor3 = Theme.Dim}):Play()
+        end
+    end
+    for _, v in ipairs(Pages:GetChildren()) do
+        if v:IsA("ScrollingFrame") then v.Visible = false end
+    end
+    TweenService:Create(tabBtn, TweenInfo.new(0.15), {BackgroundColor3 = Theme.Accent, TextColor3 = Theme.Text}):Play()
+    page.Visible = true
+end
+
+-- Animação de Minimizar
 local expanded = false
 local function setExpanded(v)
     expanded = v
     MinBtn.Text = v and "−" or "+"
-    TweenService:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = UDim2.new(0, W, 0, v and (50 + CONTENT_H) or 50)}):Play()
+    TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, W, 0, v and H or 50)
+    }):Play()
+    TabContainer.Visible = v
+    Pages.Visible = v
 end
+
 MinBtn.MouseButton1Click:Connect(function() setExpanded(not expanded) end)
-CloseBtn.MouseButton1Click:Connect(function()
-    G.Running = false
-    ScreenGui:Destroy()
-end)
 
--- Status
-local StatusRow = Instance.new("Frame")
-StatusRow.Size, StatusRow.BackgroundColor3 = UDim2.new(1, 0, 0, 26), C.Surface
-StatusRow.BorderSizePixel, StatusRow.LayoutOrder, StatusRow.Parent = 0, 0, Content
-Instance.new("UICorner", StatusRow).CornerRadius = UDim.new(0, 6)
+-- Componentes
+local function createSection(text, order, parent)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size, lbl.BackgroundTransparency = UDim2.new(1, 0, 0, 20), 1
+    lbl.Text, lbl.TextColor3, lbl.Font, lbl.TextSize = string.upper(text), Theme.AccentL, Enum.Font.GothamBold, 11
+    lbl.TextXAlignment, lbl.LayoutOrder, lbl.Parent = Enum.TextXAlignment.Left, order, parent
+    return lbl
+end
 
-local StatusLbl = Instance.new("TextLabel")
-StatusLbl.Size, StatusLbl.Position = UDim2.new(1, -12, 1, 0), UDim2.new(0, 10, 0, 0)
-StatusLbl.BackgroundTransparency = 1
-StatusLbl.Text, StatusLbl.TextColor3 = "● aguardando remotes...", C.Dim
-StatusLbl.Font, StatusLbl.TextSize, StatusLbl.TextXAlignment = Enum.Font.Gotham, 11, Enum.TextXAlignment.Left
-StatusLbl.Parent = StatusRow
+local function createToggle(lbl, desc, order, parent, getF, setF)
+    local frame = Instance.new("Frame")
+    frame.Size, frame.BackgroundColor3, frame.BorderSizePixel = UDim2.new(1, 0, 0, 50), Theme.Surface, 0
+    frame.LayoutOrder, frame.Parent = order, parent
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+    
+    local title = Instance.new("TextLabel")
+    title.Size, title.Position = UDim2.new(1, -60, 0, 20), UDim2.new(0, 12, 0, 8)
+    title.BackgroundTransparency, title.Text, title.TextColor3 = 1, lbl, Theme.Text
+    title.Font, title.TextSize, title.TextXAlignment, title.Parent = Enum.Font.GothamSemibold, 13, Enum.TextXAlignment.Left, frame
+    
+    local sub = Instance.new("TextLabel")
+    sub.Size, sub.Position = UDim2.new(1, -60, 0, 14), UDim2.new(0, 12, 0, 28)
+    sub.BackgroundTransparency, sub.Text, sub.TextColor3 = 1, desc, Theme.Dim
+    sub.Font, sub.TextSize, sub.TextXAlignment, sub.Parent = Enum.Font.Gotham, 11, Enum.TextXAlignment.Left, frame
+    
+    local pill = Instance.new("Frame")
+    pill.Size, pill.Position = UDim2.new(0, 44, 0, 24), UDim2.new(1, -56, 0.5, -12)
+    pill.BackgroundColor3, pill.BorderSizePixel, pill.Parent = getF() and Theme.Accent or Theme.Border, 0, frame
+    Instance.new("UICorner", pill).CornerRadius = UDim.new(1, 0)
+    
+    local knob = Instance.new("Frame")
+    knob.Size, knob.Position = UDim2.new(0, 18, 0, 18), getF() and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
+    knob.BackgroundColor3, knob.BorderSizePixel, knob.Parent = Color3.new(1,1,1), 0, pill
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+    
+    local btn = Instance.new("TextButton")
+    btn.Size, btn.BackgroundTransparency, btn.Text, btn.ZIndex = UDim2.new(1,0,1,0), 1, "", 3
+    btn.Parent = frame
+    
+    btn.MouseButton1Click:Connect(function()
+        local state = not getF()
+        setF(state)
+        TweenService:Create(pill, TweenInfo.new(0.15), {BackgroundColor3 = state and Theme.Accent or Theme.Border}):Play()
+        TweenService:Create(knob, TweenInfo.new(0.15), {Position = state and UDim2.new(1,-20,0.5,-9) or UDim2.new(0,3,0.5,-9)}):Play()
+    end)
+end
+
+local function createButton(txt, order, parent, color, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size, btn.BackgroundColor3 = UDim2.new(1, 0, 0, 36), color
+    btn.Text, btn.TextColor3, btn.Font, btn.TextSize, btn.BorderSizePixel = txt, Theme.Text, Enum.Font.GothamBold, 12, 0
+    btn.LayoutOrder, btn.Parent = order, parent
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    
+    btn.MouseEnter:Connect(function() TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = color:Lerp(Color3.new(1,1,1), 0.1)}):Play() end)
+    btn.MouseLeave:Connect(function() TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = color}):Play() end)
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+-- ══════════════════════════════════════════════
+--  CONSTRUÇÃO DAS ABAS
+-- ══════════════════════════════════════════════
+
+-- ABA 1: HOME (Teleporte e Status)
+local TabHome, PageHome = createTab("HOME", 1)
+createSection("Status de Conexão", 1, PageHome)
+local statusLbl = Instance.new("TextLabel")
+statusLbl.Size, statusLbl.BackgroundColor3 = UDim2.new(1, 0, 0, 30), Theme.Surface
+statusLbl.Text, statusLbl.TextColor3, statusLbl.Font, statusLbl.TextSize = "● Aguardando Remotes...", Theme.Dim, Enum.Font.Gotham, 12
+statusLbl.LayoutOrder, statusLbl.Parent = 2, PageHome
+Instance.new("UICorner", statusLbl).CornerRadius = UDim.new(0, 8)
 
 task.spawn(function()
     while G.Running do
         local list = {}
         for k, v in pairs(REMOTES) do if v then table.insert(list, k) end end
-        if #list > 0 then StatusLbl.Text, StatusLbl.TextColor3 = "● " .. table.concat(list, "  ·  "), C.Green
-        else StatusLbl.Text, StatusLbl.TextColor3 = "● aguardando — entre em partida", C.Dim end
+        if #list > 0 then
+            statusLbl.Text, statusLbl.TextColor3 = "● " .. table.concat(list, " · "), Theme.Green
+        else
+            statusLbl.Text, statusLbl.TextColor3 = "● Aguardando conexão com a partida...", Theme.Dim
+        end
         task.wait(1.5)
     end
 end)
 
--- Construtores
-local function sectionLbl(text, order)
-    local f = Instance.new("TextLabel")
-    f.Size, f.BackgroundTransparency = UDim2.new(1, 0, 0, 18), 1
-    f.Text, f.TextColor3, f.Font, f.TextSize = "  " .. text:upper(), C.AccentL, Enum.Font.GothamBold, 11
-    f.TextXAlignment, f.LayoutOrder, f.Parent = Enum.TextXAlignment.Left, order, Content
-end
-
-local function makeButton(txt, order, color, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 38)
-    btn.BackgroundColor3 = color
-    btn.Text, btn.TextColor3 = txt, Color3.new(1,1,1)
-    btn.Font, btn.TextSize, btn.BorderSizePixel = Enum.Font.GothamBold, 13, 0
-    btn.LayoutOrder, btn.Parent = order, Content
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
-    btn.MouseButton1Click:Connect(callback)
-    return btn
-end
-
-local function makeToggle(lbl, sub, order, getF, setF)
-    local row = Instance.new("Frame")
-    row.Size, row.BackgroundColor3 = UDim2.new(1, 0, 0, 60), C.Surface
-    row.BorderSizePixel, row.LayoutOrder, row.Parent = 0, order, Content
-    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 10)
-
-    local t = Instance.new("TextLabel")
-    t.Size, t.Position = UDim2.new(1,-72,0,20), UDim2.new(0,12,0,10)
-    t.BackgroundTransparency, t.Text, t.TextColor3 = 1, lbl, C.Text
-    t.Font, t.TextSize, t.TextXAlignment, t.Parent = Enum.Font.GothamSemibold, 13, Enum.TextXAlignment.Left, row
-
-    local s = Instance.new("TextLabel")
-    s.Size, s.Position = UDim2.new(1,-72,0,16), UDim2.new(0,12,0,32)
-    s.BackgroundTransparency, s.Text, s.TextColor3 = 1, sub, C.Dim
-    s.Font, s.TextSize, s.TextXAlignment, s.Parent = Enum.Font.Gotham, 11, Enum.TextXAlignment.Left, row
-
-    local pill = Instance.new("Frame")
-    pill.Size, pill.Position = UDim2.new(0,50,0,28), UDim2.new(1,-62,0.5,-14)
-    pill.BackgroundColor3, pill.BorderSizePixel, pill.Parent = getF() and C.Accent or C.Border, 0, row
-    Instance.new("UICorner", pill).CornerRadius = UDim.new(1,0)
-
-    local knob = Instance.new("Frame")
-    knob.Size, knob.Position = UDim2.new(0,22,0,22), getF() and UDim2.new(1,-25,0.5,-11) or UDim2.new(0,3,0.5,-11)
-    knob.BackgroundColor3, knob.BorderSizePixel, knob.Parent = Color3.new(1,1,1), 0, pill
-    Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
-
-    local function refresh()
-        local on = getF()
-        TweenService:Create(pill, TweenInfo.new(0.15), {BackgroundColor3 = on and C.Accent or C.Border}):Play()
-        TweenService:Create(knob, TweenInfo.new(0.15), {Position = on and UDim2.new(1,-25,0.5,-11) or UDim2.new(0,3,0.5,-11)}):Play()
-    end
-
-    local btn = Instance.new("TextButton")
-    btn.Size, btn.BackgroundTransparency, btn.Text, btn.ZIndex = UDim2.new(1,0,1,0), 1, "", 3
-    btn.Parent = row
-    btn.MouseButton1Click:Connect(function() setF(not getF()) refresh() end)
-end
-
-local function makeSlider(lbl, order, minV, maxV, getF, setF, fmt)
-    fmt = fmt or "%g"
-    local row = Instance.new("Frame")
-    row.Size, row.BackgroundColor3 = UDim2.new(1,0,0,64), C.Surface
-    row.BorderSizePixel, row.LayoutOrder, row.Parent = 0, order, Content
-    Instance.new("UICorner", row).CornerRadius = UDim.new(0,10)
-
-    local t = Instance.new("TextLabel")
-    t.Size, t.Position = UDim2.new(0.65,0,0,20), UDim2.new(0,12,0,10)
-    t.BackgroundTransparency, t.Text, t.TextColor3 = 1, lbl, C.Text
-    t.Font, t.TextSize, t.TextXAlignment, t.Parent = Enum.Font.GothamSemibold, 13, Enum.TextXAlignment.Left, row
-
-    local vLbl = Instance.new("TextLabel")
-    vLbl.Size, vLbl.Position = UDim2.new(0.3,0,0,20), UDim2.new(0.68,0,0,10)
-    vLbl.BackgroundTransparency, vLbl.Text, vLbl.TextColor3 = 1, string.format(fmt, getF()), C.AccentL
-    vLbl.Font, vLbl.TextSize, vLbl.TextXAlignment, vLbl.Parent = Enum.Font.GothamBold, 12, Enum.TextXAlignment.Right, row
-
-    local track = Instance.new("Frame")
-    track.Size, track.Position = UDim2.new(1,-24,0,10), UDim2.new(0,12,0,40)
-    track.BackgroundColor3, track.BorderSizePixel, track.Parent = C.Border, 0, row
-    Instance.new("UICorner", track).CornerRadius = UDim.new(1,0)
-
-    local pct = (getF()-minV)/(maxV-minV)
-    local fill = Instance.new("Frame")
-    fill.Size, fill.BackgroundColor3, fill.BorderSizePixel, fill.Parent = UDim2.new(pct,0,1,0), C.Accent, 0, track
-    Instance.new("UICorner", fill).CornerRadius = UDim.new(1,0)
-
-    local knob = Instance.new("Frame")
-    knob.Size, knob.Position = UDim2.new(0,18,0,18), UDim2.new(pct,-9,0.5,-9)
-    knob.BackgroundColor3, knob.BorderSizePixel, knob.Parent = Color3.new(1,1,1), 0, track
-    Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
-
-    local dragging = false
-    local function updateFromX(x)
-        local rel = math.clamp((x - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
-        local val = minV + (maxV - minV) * rel
-        if maxV - minV >= 4 then val = math.floor(val + 0.5) end
-        setF(val)
-        vLbl.Text = string.format(fmt, val)
-        local p = (val - minV) / (maxV - minV)
-        fill.Size, knob.Position = UDim2.new(p,0,1,0), UDim2.new(p,-9,0.5,-9)
-    end
-
-    local hit = Instance.new("TextButton")
-    hit.Size, hit.BackgroundTransparency, hit.Text, hit.ZIndex = UDim2.new(1,0,1,0), 1, "", 5
-    hit.Parent = track
-    hit.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            updateFromX(inp.Position.X)
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(inp)
-        if dragging and (inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseMovement) then
-            updateFromX(inp.Position.X)
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
-    end)
-end
-
--- ══════════════════════════════════════════════
---  MONTAGEM DA INTERFACE
--- ══════════════════════════════════════════════
-
--- Seção de Macro
-sectionLbl("Macro (Gravar Cliques)", 1)
-local RecBtn = makeButton("● Iniciar Gravação", 2, Color3.fromRGB(180, 50, 50), function()
-    if G.IsRecording then
-        stopRecording()
-        RecBtn.Text = "● Iniciar Gravação"
-        RecBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-    else
-        startRecording()
-        RecBtn.Text = "■ Parar Gravação"
-        RecBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
-    end
-end)
-local PlayBtn = makeButton("▶ Reproduzir Macro", 3, Color3.fromRGB(50, 150, 80), function()
-    if G.IsPlaying then
-        stopPlayback()
-        PlayBtn.Text = "▶ Reproduzir Macro"
-        PlayBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 80)
-    else
-        if #G.MacroCache > 0 then
-            playMacro()
-            PlayBtn.Text = "■ Parar Reprodução"
-            PlayBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
-        end
-    end
-end)
-
--- NOVOS BOTÕES DE SALVAR E CARREGAR MACRO
-local SaveBtn = makeButton("💾 Salvar Macro (PC/Mobile)", 4, Color3.fromRGB(50, 80, 150), function()
-    if #G.MacroCache > 0 then
-        if saveMacroToFile() then
-            SaveBtn.Text = "✅ Macro Salvo!"
-            task.wait(2)
-            SaveBtn.Text = "💾 Salvar Macro (PC/Mobile)"
-        else
-            SaveBtn.Text = "❌ Erro ao Salvar"
-            task.wait(2)
-            SaveBtn.Text = "💾 Salvar Macro (PC/Mobile)"
-        end
-    else
-        SaveBtn.Text = "⚠️ Nada Gravado"
-        task.wait(2)
-        SaveBtn.Text = "💾 Salvar Macro (PC/Mobile)"
-    end
-end)
-
-local LoadBtn = makeButton("📂 Carregar Macro", 5, Color3.fromRGB(150, 100, 50), function()
-    if loadMacroFromFile() then
-        LoadBtn.Text = "✅ Macro Carregado!"
-        task.wait(2)
-        LoadBtn.Text = "📂 Carregar Macro"
-    else
-        LoadBtn.Text = "❌ Nenhum Macro Salvo"
-        task.wait(2)
-        LoadBtn.Text = "📂 Carregar Macro"
-    end
-end)
-
--- Seção de Teleporte / Auto-Retorno
-sectionLbl("Auto-Retorno Lobby", 6)
-makeButton("Salvar Posição: Raid", 7, Color3.fromRGB(60, 60, 85), function()
+createSection("Auto-Retorno Lobby", 3, PageHome)
+createButton("📍 Salvar Posição: Raid", 4, PageHome, Theme.Border, function()
     if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
         G.PosRaid = lp.Character.HumanoidRootPart.CFrame
     end
 end)
-makeButton("Salvar Posição: Cassino", 8, Color3.fromRGB(60, 60, 85), function()
+createButton("📍 Salvar Posição: Cassino", 5, PageHome, Theme.Border, function()
     if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
         G.PosCassino = lp.Character.HumanoidRootPart.CFrame
     end
 end)
-makeToggle("Loop Auto Raid", "Volta pra Raid sozinho", 9, function() return G.AutoRaid end, function(v) G.AutoRaid = v end)
-makeToggle("Loop Auto Cassino", "Volta pro Cassino sozinho", 10, function() return G.AutoCassino end, function(v) G.AutoCassino = v end)
+createToggle("Loop Auto Raid", "Volta ao lobby automaticamente", 6, PageHome, function() return G.AutoRaid end, function(v) G.AutoRaid = v end)
+createToggle("Loop Auto Cassino", "Volta ao cassino automaticamente", 7, PageHome, function() return G.AutoCassino end, function(v) G.AutoCassino = v end)
 
--- Seção de Automação
-sectionLbl("Automação de Jogo", 11)
-makeToggle("Auto Wave", "Inicia onda automaticamente", 12, function() return G.AutoWave end, function(v) G.AutoWave = v end)
-makeToggle("Auto Place", "Coloca torres nos slots livres", 13, function() return G.AutoPlace end, function(v) G.AutoPlace = v end)
-makeToggle("Auto Upgrade", "Sobe torres até o nível máximo", 14, function() return G.AutoUpgrade end, function(v) G.AutoUpgrade = v end)
-makeToggle("Auto Sell", "Vende torres no nível máximo", 15, function() return G.AutoSell end, function(v) G.AutoSell = v end)
 
--- Configurações
-sectionLbl("Configurações", 16)
-makeSlider("Delay entre ondas", 17, 0.5, 5, function() return G.WaveDelay end, function(v) G.WaveDelay = v end, "%.1fs")
-makeSlider("Nível máximo", 18, 1, 20, function() return G.MaxLevel end, function(v) G.MaxLevel = math.floor(v) end, "%d")
+-- ABA 2: MACRO (Gravação)
+local TabMacro, PageMacro = createTab("MACRO", 2)
+createSection("Gravação de Cliques", 1, PageMacro)
+local recBtn = createButton("● Iniciar Gravação", 2, PageMacro, Theme.Red, function()
+    if G.IsRecording then
+        stopRecording()
+        recBtn.Text, recBtn.BackgroundColor3 = "● Iniciar Gravação", Theme.Red
+    else
+        startRecording()
+        recBtn.Text, recBtn.BackgroundColor3 = "■ Parar Gravação", Theme.Border
+    end
+end)
 
-print("[STD] GUI pronta e atualizada.")
+local playBtn = createButton("▶ Reproduzir Macro", 3, PageMacro, Theme.Green, function()
+    if G.IsPlaying then
+        stopPlayback()
+        playBtn.Text, playBtn.BackgroundColor3 = "▶ Reproduzir Macro", Theme.Green
+    else
+        if #G.MacroCache > 0 then
+            playMacro()
+            playBtn.Text, playBtn.BackgroundColor3 = "■ Parar Reprodução", Theme.Border
+        end
+    end
+end)
+
+createSection("Gerenciamento de Macro", 4, PageMacro)
+createButton("💾 Salvar Macro", 5, PageMacro, Color3.fromRGB(50, 80, 150), function()
+    if saveMacroToFile() then
+        local old = "💾 Salvar Macro"
+        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Sucesso", Text = "Macro Salvo no dispositivo!", Duration = 3})
+    else
+        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Erro", Text = "Nenhum macro ou falha ao salvar.", Duration = 3})
+    end
+end)
+
+createButton("📂 Carregar Macro", 6, PageMacro, Color3.fromRGB(150, 100, 50), function()
+    if loadMacroFromFile() then
+        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Sucesso", Text = "Macro Carregado com sucesso!", Duration = 3})
+    else
+        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Erro", Text = "Nenhum macro salvo encontrado.", Duration = 3})
+    end
+end)
+
+
+-- ABA 3: AUTO (Automação)
+local TabAuto, PageAuto = createTab("AUTO", 3)
+createSection("Combate", 1, PageAuto)
+createToggle("Auto Wave", "Inicia onda automaticamente", 2, PageAuto, function() return G.AutoWave end, function(v) G.AutoWave = v end)
+createToggle("Auto Place", "Coloca torres nos slots livres", 3, PageAuto, function() return G.AutoPlace end, function(v) G.AutoPlace = v end)
+createToggle("Auto Upgrade", "Sobe torres até o nível máximo", 4, PageAuto, function() return G.AutoUpgrade end, function(v) G.AutoUpgrade = v end)
+createToggle("Auto Sell", "Vende torres no nível máximo", 5, PageAuto, function() return G.AutoSell end, function(v) G.AutoSell = v end)
+
+createSection("Configurações de Auto", 6, PageAuto)
+createButton("⚙️ Configurações de Slots e Nível", 7, PageAuto, Theme.Accent, function()
+    game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Aviso", Text = "Use as configurações originais (ainda não migradas para a UI Premium).", Duration = 4})
+end)
+
+-- Inicializa na Aba Home
+switchTab(TabHome, PageHome)
+
+-- Print de confirmação
+print("[STD] UI Premium carregada com sucesso.")
