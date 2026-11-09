@@ -673,4 +673,6 @@ makeToggle("Auto Sell", "Vende torres no nível máximo", 15, function() return 
 -- Configurações
 sectionLbl("Configurações", 16)
 makeSlider("Delay entre ondas", 17, 0.5, 5, function() return G.WaveDelay end, function(v) G.WaveDelay = v end, "%.1fs")
-makeSlider("Nível máximo", 18, 1, 20
+makeSlider("Nível máximo", 18, 1, 20, function() return G.MaxLevel end, function(v) G.MaxLevel = math.floor(v) end, "%d")
+
+print("[STD] GUI pronta e atualizada.")
